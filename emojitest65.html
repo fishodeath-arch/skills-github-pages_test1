@@ -3,45 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.22</title>
+<title>3D Shake Emoji v0.23</title>
 <style>
   body {
     margin: 0;
     height: 100vh;
     width: 100vw;
-    background: #222;
+    background: #222; /* Plain background */
     overflow: hidden;
     touch-action: none;
     font-family: sans-serif;
     position: relative;
     perspective: 1000px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #sphere {
-    position: absolute;
-    width: 80vmin;
-    height: 80vmin;
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), rgba(255,255,255,0) 70%), 
-                radial-gradient(circle at 70% 70%, rgba(255,255,255,0.05), rgba(255,255,255,0) 70%), 
-                #444;
-    box-shadow: inset -10px -10px 40px rgba(255,255,255,0.05), inset 5px 5px 20px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 0;
   }
 
   #emoji {
     font-size: 12vw;
     position: absolute;
-    transform: translate(50%, 50%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     transform-style: preserve-3d;
     text-shadow: 0 0 5px #fff;
-    z-index: 1;
   }
 
   #startBtn {
@@ -61,21 +44,12 @@
 </style>
 </head>
 <body>
-<div id="sphere"></div>
 <div id="emoji">😎</div>
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
-const sphere = document.getElementById('sphere');
-
-// Shake detection
-let lastX = 0, lastY = 0, lastZ = 0;
-
-// Emoji reactions
-const defaultEmoji = '😎';
-const reactions = ['😢','😡','😱','😆','🤯','😭','😳','😬','🤪','😵','😤','😈','👻','💥','💫'];
 
 // Position and velocity
 let posX, posY, posZ = 0;
@@ -92,18 +66,28 @@ const wanderRange = 50;
 const wanderSpeed = 0.0125;
 const stickDuration = 1500;
 
-// Sphere center & radius (computed dynamically)
-let centerX, centerY, sphereRadius;
+// Screen center & boundaries
+let centerX, centerY, maxRadius;
 
-// Animation variables
-let latestShake = 0;
-let latestDepth = 1;
-let tiltX = 0, tiltY = 0, tiltZ = 0;
-let breathePhase = 0;
+// Drift
 let driftX = 0, driftY = 0;
 let targetDriftX = (Math.random()*2-1)*wanderRange;
 let targetDriftY = (Math.random()*2-1)*wanderRange;
-let edgeStickTimer = 0;
+
+// Shake & tilt
+let lastX = 0, lastY = 0, lastZ = 0;
+let latestShake = 0;
+let latestDepth = 1;
+let tiltX=0, tiltY=0, tiltZ=0;
+let breathePhase=0;
+let edgeStickTimer=0;
+
+// Emoji pool (faces only)
+const defaultEmoji = '😎';
+const faceEmojis = [
+  '😀','😃','😄','😁','😆','😅','😂','🤣','☺️','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚',
+  '😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕'
+];
 
 // Canvas watermark
 const canvas = document.createElement('canvas');
@@ -122,26 +106,25 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.22', canvas.width/2, canvas.height-20);
+  ctx.fillText('v0.23', canvas.width/2, canvas.height-20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
 
-// Compute sphere metrics
-function updateSphereMetrics(){
-  const rect = sphere.getBoundingClientRect();
-  centerX = rect.left + rect.width/2;
-  centerY = rect.top + rect.height/2;
-  sphereRadius = rect.width/2 - 30;
+// Initialize center
+function updateScreenMetrics(){
+  centerX = window.innerWidth/2;
+  centerY = window.innerHeight/2;
+  maxRadius = Math.min(centerX, centerY) - 60;
 
-  // Only initialize position if undefined (first frame)
-  if(posX === undefined || posY === undefined){
+  if(posX===undefined || posY===undefined){
     posX = centerX;
     posY = centerY;
   }
 }
 
-updateSphereMetrics();
+updateScreenMetrics();
+window.addEventListener('resize', updateScreenMetrics);
 
 function updateDrift(){
   driftX += (targetDriftX - driftX) * wanderSpeed;
@@ -150,7 +133,7 @@ function updateDrift(){
   if(Math.abs(targetDriftY - driftY)<1) targetDriftY=(Math.random()*2-1)*wanderRange;
 }
 
-function adjustAccel(delta){ return Math.sign(delta) * Math.pow(Math.abs(delta),0.7); }
+function adjustAccel(delta){ return Math.sign(delta)*Math.pow(Math.abs(delta),0.7); }
 
 function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0,y:0,z:0};
@@ -172,7 +155,6 @@ function handleMotion(event){
 }
 
 function animate(timestamp){
-  // Center pull + drift
   velX += ((centerX+driftX)-posX)*centerPull;
   velY += ((centerY+driftY)-posY)*centerPull;
   velZ += (0-posZ)*centerPull;
@@ -180,16 +162,16 @@ function animate(timestamp){
   velX *= damping; velY *= damping; velZ *= damping;
   posX += velX; posY += velY; posZ += velZ;
 
-  // Sphere boundary with stickiness
+  // Circular boundary (stickiness)
   let dx = posX-centerX;
   let dy = posY-centerY;
   let dz = posZ-0;
   let dist = Math.sqrt(dx*dx+dy*dy+dz*dz);
 
-  if(dist>sphereRadius){
+  if(dist>maxRadius){
     if(!edgeStickTimer){
       edgeStickTimer = timestamp;
-      const reaction = reactions[Math.floor(Math.random()*reactions.length)];
+      const reaction = faceEmojis[Math.floor(Math.random()*faceEmojis.length)];
       emoji.textContent = reaction;
       setTimeout(()=>emoji.textContent=defaultEmoji,1500);
     }
@@ -197,9 +179,9 @@ function animate(timestamp){
       velX=0; velY=0; velZ=0;
     } else {
       let nx=dx/dist, ny=dy/dist, nz=dz/dist;
-      posX=centerX+nx*sphereRadius;
-      posY=centerY+ny*sphereRadius;
-      posZ=0+nz*sphereRadius;
+      posX=centerX+nx*maxRadius;
+      posY=centerY+ny*maxRadius;
+      posZ=0+nz*maxRadius;
       let dot=velX*nx+velY*ny+velZ*nz;
       velX-=2*dot*nx*bounce;
       velY-=2*dot*ny*bounce;
@@ -249,12 +231,6 @@ function enableMotion(){
 }
 
 startBtn.addEventListener('click', enableMotion);
-
-window.addEventListener('resize',()=>{
-  updateSphereMetrics();
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
 </script>
 </body>
 </html>
