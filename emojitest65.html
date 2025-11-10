@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.30</title>
+<title>3D Shake Emoji v0.31</title>
 <style>
   body {
     margin: 0;
@@ -51,6 +51,17 @@
 <script>
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
+
+// Wait for font/emoji to render to get size
+let emojiCenterOffsetX = 0;
+let emojiCenterOffsetY = 0;
+function updateEmojiOffset(){
+  const rect = emoji.getBoundingClientRect();
+  emojiCenterOffsetX = rect.width / 2;
+  emojiCenterOffsetY = rect.height / 2;
+}
+updateEmojiOffset();
+window.addEventListener('resize', updateEmojiOffset);
 
 // Position and velocity
 let posX = window.innerWidth / 2;
@@ -112,7 +123,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.30', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.31', canvas.width/2, canvas.height - 20);
 }
 
 // Nonlinear accelerometer adjustment
@@ -145,8 +156,8 @@ function handleMotion(event){
 
 // Animation loop
 function animate(timestamp){
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
+  const centerX = window.innerWidth / 2 + emojiCenterOffsetX;
+  const centerY = window.innerHeight / 2 + emojiCenterOffsetY;
 
   // Center pull toward true center
   velX += (centerX - posX) * centerPull;
@@ -254,6 +265,7 @@ window.addEventListener('resize', () => {
   sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  updateEmojiOffset();
 });
 </script>
 </body>
