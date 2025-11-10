@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.10</title>
+<title>3D Shake Emoji v0.11</title>
 <style>
   body {
     margin: 0;
@@ -46,19 +46,18 @@
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
     font-size: 24px;
     z-index: 9999;
+    font-weight: bold;
     user-select: none;
     pointer-events: none;
-    font-weight: bold;
-    font-family: sans-serif;
   }
 </style>
 </head>
 <body>
 <div id="emoji">😎</div>
-<div id="version">v0.10</div>
+<div id="version">v0.11</div>
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
@@ -77,18 +76,18 @@ let velZ = 0;
 const damping = 0.95;
 const bounce = 0.8;
 const shakeSensitivity = 4.0;
-const centerPull = 0.0025; // 4x smaller than previous 0.01
+const centerPull = 0.0025;
 const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
 const maxRotation = 15;
 const wanderRange = 50;
-const wanderSpeed = 0.0125; // 4x smoother than previous 0.05
+const wanderSpeed = 0.0125;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
 
-// Emoji reactions (expanded pool)
+// Emoji reactions
 const defaultEmoji = '😎';
 const reactions = [
   '😢','😡','😱','😆','🤯','😭',
@@ -117,19 +116,24 @@ function updateDrift(){
   if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
 }
 
+// Nonlinear accelerometer adjustment function
+function adjustAccel(delta){
+  return Math.sign(delta) * Math.pow(Math.abs(delta), 0.7); // boosts small values, softens large
+}
+
 function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
 
-  const deltaX = acc.x - lastX;
-  const deltaY = acc.y - lastY;
-  const deltaZ = acc.z - lastZ;
+  const deltaX = adjustAccel(acc.x - lastX);
+  const deltaY = adjustAccel(acc.y - lastY);
+  const deltaZ = adjustAccel(acc.z - lastZ);
   const shake = Math.sqrt(deltaX**2 + deltaY**2 + deltaZ**2);
 
   lastX = acc.x;
   lastY = acc.y;
   lastZ = acc.z;
 
-  if(shake > 1){
+  if(shake > 0.1){ // small threshold to reduce noise
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
     velZ += deltaZ * shakeSensitivity * 0.5;
