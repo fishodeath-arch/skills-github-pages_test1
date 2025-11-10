@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.26</title>
+<title>3D Shake Emoji v0.27</title>
 <style>
   body {
     margin: 0;
@@ -18,7 +18,7 @@
   }
 
   #emoji {
-    font-size: 12vw;
+    font-size: 18vw; /* 50% bigger than 12vw */
     position: absolute;
     top: 0;
     left: 0;
@@ -69,6 +69,7 @@ const depthSensitivity = 0.05;
 const lowMovementCutoff = 0.15; 
 const stickDuration = 1200; 
 const emojiHoldDuration = 3000; // 3 seconds
+const trailLength = 8; // number of trailing ghosts
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
@@ -89,9 +90,7 @@ const reactions = [
 // Animation variables
 let latestShake = 0;
 let latestDepth = 1;
-let rotationX = 0;
-let rotationY = 0;
-let rotationZ = 0;
+let rotationX = 0, rotationY = 0, rotationZ = 0;
 let tiltX = 0, tiltY = 0, tiltZ = 0;
 let breathePhase = 0;
 let driftX = 0, driftY = 0;
@@ -101,7 +100,10 @@ let edgeStickTimer = 0;
 let emojiTimer = null;
 let animateId = null;
 
-// Canvas overlay for watermark
+// Trail storage
+let trail = [];
+
+// Canvas overlay for trail + watermark
 const canvas = document.createElement('canvas');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -117,7 +119,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.26', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.27', canvas.width/2, canvas.height - 20);
 }
 
 // Drift update
@@ -160,11 +162,10 @@ function handleMotion(event){
 function animate(timestamp){
   updateDrift();
 
-  // Calculate true window center each frame
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
 
-  // Pull toward absolute center
+  // Center pull
   velX += (centerX - posX) * centerPull;
   velY += (centerY - posY) * centerPull;
   velZ += (0 - posZ) * centerPull;
@@ -188,9 +189,8 @@ function animate(timestamp){
       edgeStickTimer = timestamp;
       const reaction = reactions[Math.floor(Math.random()*reactions.length)];
       emoji.textContent = reaction;
-
       if(emojiTimer) clearTimeout(emojiTimer);
-      emojiTimer = setTimeout(()=>emoji.textContent = defaultEmoji, 3000);
+      emojiTimer = setTimeout(()=>emoji.textContent = defaultEmoji, emojiHoldDuration);
     }
     if(timestamp - edgeStickTimer < stickDuration){
       velX = 0; velY = 0; velZ = 0;
@@ -214,16 +214,30 @@ function animate(timestamp){
   const breatheTiltX = Math.sin(breathePhase*0.5)*2;
   const breatheTiltY = Math.sin(breathePhase*0.3)*2;
 
-  // Motion wobble
   const wobbleX = velY * 0.8; 
   const wobbleY = velX * 0.8; 
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
 
-  // Apply drift as a visual offset
+  // Apply drift as visual offset
   const visualX = posX + driftX;
   const visualY = posY + driftY;
 
-  // Draw emoji
+  // Push current frame to trail
+  trail.push({x: visualX, y: visualY, z: posZ, scale: finalScale, emoji: emoji.textContent});
+  if(trail.length > trailLength) trail.shift();
+
+  // Draw trail + watermark
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawWatermark();
+  trail.forEach((t, i) => {
+    ctx.globalAlpha = (i+1)/trail.length * 0.5; // fading effect
+    ctx.font = `${18 * t.scale}vw sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(t.emoji, t.x, t.y);
+  });
+  ctx.globalAlpha = 1;
+
+  // Main emoji (invisible, handled by trail)
   emoji.style.transform = `
     translate(${visualX}px, ${visualY}px)
     translateZ(${posZ}px)
@@ -232,10 +246,6 @@ function animate(timestamp){
     rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY + wobbleY}deg)
     rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
-
-  // Watermark
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawWatermark();
 
   animateId = requestAnimationFrame(animate);
 }
