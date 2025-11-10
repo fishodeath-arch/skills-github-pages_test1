@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.27</title>
+<title>3D Shake Emoji v0.28</title>
 <style>
   body {
     margin: 0;
@@ -18,7 +18,7 @@
   }
 
   #emoji {
-    font-size: 18vw; /* 50% bigger than 12vw */
+    font-size: 18vw; /* 50% bigger */
     position: absolute;
     top: 0;
     left: 0;
@@ -69,7 +69,6 @@ const depthSensitivity = 0.05;
 const lowMovementCutoff = 0.15; 
 const stickDuration = 1200; 
 const emojiHoldDuration = 3000; // 3 seconds
-const trailLength = 8; // number of trailing ghosts
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
@@ -93,17 +92,11 @@ let latestDepth = 1;
 let rotationX = 0, rotationY = 0, rotationZ = 0;
 let tiltX = 0, tiltY = 0, tiltZ = 0;
 let breathePhase = 0;
-let driftX = 0, driftY = 0;
-let targetDriftX = (Math.random()*2 - 1) * 50;
-let targetDriftY = (Math.random()*2 - 1) * 50;
 let edgeStickTimer = 0;
 let emojiTimer = null;
 let animateId = null;
 
-// Trail storage
-let trail = [];
-
-// Canvas overlay for trail + watermark
+// Canvas overlay for watermark
 const canvas = document.createElement('canvas');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -119,15 +112,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.27', canvas.width/2, canvas.height - 20);
-}
-
-// Drift update
-function updateDrift(){
-  driftX += (targetDriftX - driftX) * 0.0125;
-  driftY += (targetDriftY - driftY) * 0.0125;
-  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * 50;
-  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * 50;
+  ctx.fillText('v0.28', canvas.width/2, canvas.height - 20);
 }
 
 // Nonlinear accelerometer adjustment
@@ -160,12 +145,10 @@ function handleMotion(event){
 
 // Animation loop
 function animate(timestamp){
-  updateDrift();
-
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
 
-  // Center pull
+  // Center pull toward true center
   velX += (centerX - posX) * centerPull;
   velY += (centerY - posY) * centerPull;
   velZ += (0 - posZ) * centerPull;
@@ -218,34 +201,19 @@ function animate(timestamp){
   const wobbleY = velX * 0.8; 
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
 
-  // Apply drift as visual offset
-  const visualX = posX + driftX;
-  const visualY = posY + driftY;
-
-  // Push current frame to trail
-  trail.push({x: visualX, y: visualY, z: posZ, scale: finalScale, emoji: emoji.textContent});
-  if(trail.length > trailLength) trail.shift();
-
-  // Draw trail + watermark
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawWatermark();
-  trail.forEach((t, i) => {
-    ctx.globalAlpha = (i+1)/trail.length * 0.5; // fading effect
-    ctx.font = `${18 * t.scale}vw sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(t.emoji, t.x, t.y);
-  });
-  ctx.globalAlpha = 1;
-
-  // Main emoji (invisible, handled by trail)
+  // Draw main emoji
   emoji.style.transform = `
-    translate(${visualX}px, ${visualY}px)
+    translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
     rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX + wobbleX}deg)
     rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY + wobbleY}deg)
     rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
+
+  // Watermark
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawWatermark();
 
   animateId = requestAnimationFrame(animate);
 }
