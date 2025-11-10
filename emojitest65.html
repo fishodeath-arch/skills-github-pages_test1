@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shake Emoji with Depth</title>
+<title>Shake Emoji with Reactions</title>
 <style>
   body {
     margin: 0;
@@ -58,14 +58,18 @@ let velX = 0;
 let velY = 0;
 
 // Physics settings
-const damping = 0.9;        // slows down velocity
-const bounce = 0.8;         // bounce off edges
-const shakeSensitivity = 2.5; // how strong shake moves the emoji
-const centerPull = 0.05;    // pull strength towards center
-const depthSensitivity = 0.05; // scaling effect from Z-axis
+const damping = 0.9;
+const bounce = 0.8;
+const shakeSensitivity = 2.5;
+const centerPull = 0.05;
+const depthSensitivity = 0.05;
 
 // Last acceleration for shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
+
+// Default emoji and reaction set
+const defaultEmoji = '😎';
+const reactions = ['😢', '😡', '😱', '😆', '🤯', '😭'];
 
 function handleMotion(event) {
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
@@ -80,13 +84,13 @@ function handleMotion(event) {
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Velocity update only from shake
+  // Velocity only from shake
   if(shake > 1) {
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
   }
 
-  // Center pull (spring effect)
+  // Center pull
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
   velX += (centerX - posX) * centerPull;
@@ -100,20 +104,29 @@ function handleMotion(event) {
   posX += velX;
   posY += velY;
 
-  // Emoji size (scale)
+  // Emoji size
   const rect = emoji.getBoundingClientRect();
   const halfWidth = rect.width / 2;
   const halfHeight = rect.height / 2;
 
-  // Bounce off edges
-  if(posX < halfWidth) { posX = halfWidth; velX *= -bounce; }
-  if(posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; }
-  if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; }
-  if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; }
+  // Bounce and reaction
+  let bounced = false;
 
-  // Scale effect: shake + Z-axis depth
-  const baseScale = 1 + Math.min(shake*0.02, 0.3); // shake scaling
-  const depthScale = 1 - (acc.z || 0) * depthSensitivity; // Z-axis scaling
+  if(posX < halfWidth) { posX = halfWidth; velX *= -bounce; bounced = true; }
+  if(posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; bounced = true; }
+  if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; bounced = true; }
+  if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; bounced = true; }
+
+  // If bounced, change emoji
+  if(bounced) {
+    const reaction = reactions[Math.floor(Math.random() * reactions.length)];
+    emoji.textContent = reaction;
+    setTimeout(() => emoji.textContent = defaultEmoji, 800); // revert to default
+  }
+
+  // Scale: shake + depth (Z-axis)
+  const baseScale = 1 + Math.min(shake*0.02, 0.3);
+  const depthScale = 1 - (acc.z || 0) * depthSensitivity;
   const finalScale = baseScale * depthScale;
 
   emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${finalScale})`;
