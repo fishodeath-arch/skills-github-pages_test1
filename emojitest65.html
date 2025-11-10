@@ -80,4 +80,41 @@ function handleMotion(event) {
   posX = Math.max(0, Math.min(window.innerWidth, posX));
   posY = Math.max(0, Math.min(window.innerHeight, posY));
 
-  //
+  // Scale & rotate based on shake and tilt
+  const scaleX = 1 + acc.x/10 - shake*0.05;
+  const scaleY = 1 - acc.x/10 + shake*0.05;
+  const rotate = acc.x * 15;
+
+  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${scaleX}, ${scaleY}) rotate(${rotate}deg)`;
+}
+
+// iOS 13+ permission request
+function enableMotion() {
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          window.addEventListener('devicemotion', handleMotion);
+          startBtn.style.display = 'none';
+        } else {
+          alert('Motion permission denied');
+        }
+      })
+      .catch(console.error);
+  } else {
+    // Non-iOS devices
+    window.addEventListener('devicemotion', handleMotion);
+    startBtn.style.display = 'none';
+  }
+}
+
+startBtn.addEventListener('click', enableMotion);
+
+// Update emoji position if window resizes
+window.addEventListener('resize', () => {
+  posX = window.innerWidth / 2;
+  posY = window.innerHeight / 2;
+});
+</script>
+</body>
+</html>
