@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.16</title>
+<title>3D Shake Emoji v0.17</title>
 <style>
   body {
     margin: 0;
@@ -65,11 +65,16 @@ const shakeSensitivity = 4.0;
 const centerPull = 0.0025; 
 const depthSensitivity = 0.05;
 const maxZ = 100;
-const minZ = -100;
+const lowMovementCutoff = 0.15; 
 const maxRotation = 15;
 const wanderRange = 50;
 const wanderSpeed = 0.0125;
-const lowMovementCutoff = 0.15; // ignores very small shakes
+
+// Sphere boundary
+let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+const centerX = window.innerWidth / 2;
+const centerY = window.innerHeight / 2;
+const centerZ = 0;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -119,7 +124,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.16', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.17', canvas.width/2, canvas.height - 20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
@@ -150,11 +155,10 @@ function handleMotion(event){
   lastY = acc.y;
   lastZ = acc.z;
 
-  if(shake > lowMovementCutoff){ // apply cutoff
+  if(shake > lowMovementCutoff){
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
     velZ += deltaZ * shakeSensitivity * 0.5;
-
     latestShake = Math.min(shake*0.02, 0.3);
   }
 
@@ -162,12 +166,7 @@ function handleMotion(event){
 }
 
 function animate(){
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
-  const centerZ = 0;
-
-  updateDrift();
-
+  // Center pull + drift
   velX += ((centerX + driftX) - posX) * centerPull;
   velY += ((centerY + driftY) - posY) * centerPull;
   velZ += (centerZ - posZ) * centerPull;
@@ -180,23 +179,26 @@ function animate(){
   posY += velY;
   posZ += velZ;
 
-  const rect = emoji.getBoundingClientRect();
-  const halfWidth = rect.width/2;
-  const halfHeight = rect.height/2;
+  // Sphere boundary
+  let dx = posX - centerX;
+  let dy = posY - centerY;
+  let dz = posZ - centerZ;
+  let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-  let bounced = false;
+  if(dist > sphereRadius){
+    let nx = dx/dist;
+    let ny = dy/dist;
+    let nz = dz/dist;
 
-  // X/Y bounce
-  if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced=true; }
-  if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced=true; }
-  if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced=true; }
-  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; }
+    posX = centerX + nx * sphereRadius;
+    posY = centerY + ny * sphereRadius;
+    posZ = centerZ + nz * sphereRadius;
 
-  // Z bounce
-  if(posZ < minZ){ posZ = minZ; velZ *= -bounce; bounced=true; }
-  if(posZ > maxZ){ posZ = maxZ; velZ *= -bounce; bounced=true; }
+    let dot = velX*nx + velY*ny + velZ*nz;
+    velX -= 2*dot*nx*bounce;
+    velY -= 2*dot*ny*bounce;
+    velZ -= 2*dot*nz*bounce;
 
-  if(bounced){
     const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
     setTimeout(()=>emoji.textContent = defaultEmoji, 2000);
@@ -210,20 +212,20 @@ function animate(){
     rotationZ *= 0.9;
   }
 
-  // --- Continuous tilt ---
+  // Continuous tilt
   tiltX += 0.05; 
   tiltY += 0.03;
   tiltZ += 0.04;
 
-  // --- Breathing / floating scale & rotation ---
+  // Breathing
   breathePhase += 0.02;
   const breatheScale = 1 + Math.sin(breathePhase)*0.02; 
   const breatheTiltX = Math.sin(breathePhase*0.5)*2;   
   const breatheTiltY = Math.sin(breathePhase*0.3)*2;   
 
-  // --- Motion-based wobble (leans in direction of velocity) ---
-  const wobbleX = velY * 0.8; // tilt based on Y velocity
-  const wobbleY = velX * 0.8; // tilt based on X velocity
+  // Motion-based wobble
+  const wobbleX = velY * 0.8; 
+  const wobbleY = velX * 0.8; 
 
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
   emoji.style.transform = `
@@ -262,6 +264,7 @@ startBtn.addEventListener('click', enableMotion);
 window.addEventListener('resize', () => {
   posX = window.innerWidth/2;
   posY = window.innerHeight/2;
+  sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 });
