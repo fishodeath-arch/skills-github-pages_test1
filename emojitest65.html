@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Motion Emoji</title>
+<title>Physics Emoji</title>
 <style>
   body {
     margin: 0;
@@ -13,9 +13,6 @@
     touch-action: none;
     font-family: sans-serif;
     color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     position: relative;
   }
 
@@ -25,13 +22,15 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    transition: transform 0.05s ease-out;
+    transition: transform 0.03s linear;
   }
 
   #startBtn {
     position: absolute;
     z-index: 100;
     bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
     padding: 15px 25px;
     font-size: 18px;
     cursor: pointer;
@@ -50,19 +49,24 @@
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
 
-let lastX = 0, lastY = 0, lastZ = 0;
-
-// Store position in pixels
+// Position and velocity
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
+let velX = 0;
+let velY = 0;
 
-// Motion sensitivity
-const sensitivity = 3; // smaller = more sensitive
+// Sensitivity & physics
+const sensitivity = 0.5; // smaller = smoother
+const damping = 0.9;     // slows down velocity
+const bounce = 0.8;      // bounce off edges
+
+// Last accelerometer values
+let lastX = 0, lastY = 0, lastZ = 0;
 
 function handleMotion(event) {
   const acc = event.accelerationIncludingGravity || {x:0, y:0, z:0};
 
-  // Shake detection
+  // Calculate change for shake effect
   const deltaX = acc.x - lastX;
   const deltaY = acc.y - lastY;
   const deltaZ = acc.z - lastZ;
@@ -72,49 +76,38 @@ function handleMotion(event) {
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Update position based on tilt
-  posX += acc.x * sensitivity;
-  posY -= acc.y * sensitivity; // invert Y for natural movement
+  // Update velocity based on tilt
+  velX += acc.x * sensitivity;
+  velY -= acc.y * sensitivity; // invert Y for natural movement
 
-  // Keep emoji inside viewport
-  posX = Math.max(0, Math.min(window.innerWidth, posX));
-  posY = Math.max(0, Math.min(window.innerHeight, posY));
+  // Apply damping
+  velX *= damping;
+  velY *= damping;
 
-  // Scale & rotate based on shake and tilt
+  // Update position
+  posX += velX;
+  posY += velY;
+
+  // Get emoji size
+  const rect = emoji.getBoundingClientRect();
+  const halfWidth = rect.width / 2;
+  const halfHeight = rect.height / 2;
+
+  // Bounce off edges
+  if(posX < halfWidth) { posX = halfWidth; velX *= -bounce; }
+  if(posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; }
+  if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; }
+  if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; }
+
+  // Scale & rotate based on tilt/shake
   const scaleX = 1 + acc.x/10 - shake*0.05;
   const scaleY = 1 - acc.x/10 + shake*0.05;
   const rotate = acc.x * 15;
 
-  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${scaleX}, ${scaleY}) rotate(${rotate}deg)`;
+  // Apply transform
+  emoji.style.transform = `translate(${posX}px, ${posY}px) translate(-50%, -50%) scale(${scaleX}, ${scaleY}) rotate(${rotate}deg)`;
 }
 
-// iOS 13+ permission request
+// iOS 13+ permission
 function enableMotion() {
-  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-    DeviceMotionEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('devicemotion', handleMotion);
-          startBtn.style.display = 'none';
-        } else {
-          alert('Motion permission denied');
-        }
-      })
-      .catch(console.error);
-  } else {
-    // Non-iOS devices
-    window.addEventListener('devicemotion', handleMotion);
-    startBtn.style.display = 'none';
-  }
-}
-
-startBtn.addEventListener('click', enableMotion);
-
-// Update emoji position if window resizes
-window.addEventListener('resize', () => {
-  posX = window.innerWidth / 2;
-  posY = window.innerHeight / 2;
-});
-</script>
-</body>
-</html>
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
