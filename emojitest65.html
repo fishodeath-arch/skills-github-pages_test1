@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.31</title>
+<title>3D Shake Emoji v0.21</title>
 <style>
   body {
     margin: 0;
@@ -18,13 +18,12 @@
   }
 
   #emoji {
-    font-size: 18vw; /* 50% bigger */
+    font-size: 12vw;
     position: absolute;
     top: 0;
     left: 0;
     transform: translate(50%, 50%);
     transform-style: preserve-3d;
-    will-change: transform;
     text-shadow: 0 0 5px #fff;
   }
 
@@ -52,17 +51,6 @@
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
 
-// Wait for font/emoji to render to get size
-let emojiCenterOffsetX = 0;
-let emojiCenterOffsetY = 0;
-function updateEmojiOffset(){
-  const rect = emoji.getBoundingClientRect();
-  emojiCenterOffsetX = rect.width / 2;
-  emojiCenterOffsetY = rect.height / 2;
-}
-updateEmojiOffset();
-window.addEventListener('resize', updateEmojiOffset);
-
 // Position and velocity
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
@@ -74,25 +62,30 @@ let velZ = 0;
 // Settings
 const damping = 0.95;
 const bounce = 0.8;
-const shakeSensitivity = 4.0;
-const centerPull = 0.0025; 
+const shakeSensitivity = 2.0;
+const centerPull = 0.0005; 
 const depthSensitivity = 0.05;
+const maxZ = 100;
 const lowMovementCutoff = 0.15; 
-const stickDuration = 1200; 
-const emojiHoldDuration = 3000; // 3 seconds
+const maxRotation = 15;
+const wanderRange = 30;
+const wanderSpeed = 0.0025;
+const stickDuration = 3200; // sticky edge duration in ms
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+const centerX = window.innerWidth / 2;
+const centerY = window.innerHeight / 2;
+const centerZ = 0;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
-let lastMotion = 0;
 
 // Emoji reactions
 const defaultEmoji = '😎';
 const reactions = [
   '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
-  '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳',
+  '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳',
   '😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤',
   '😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫'
 ];
@@ -100,12 +93,26 @@ const reactions = [
 // Animation variables
 let latestShake = 0;
 let latestDepth = 1;
-let rotationX = 0, rotationY = 0, rotationZ = 0;
-let tiltX = 0, tiltY = 0, tiltZ = 0;
+let rotationX = 0;
+let rotationY = 0;
+let rotationZ = 0;
+
+// Continuous tilt angles
+let tiltX = 0;
+let tiltY = 0;
+let tiltZ = 0;
+
+// Breathing / floating variables
 let breathePhase = 0;
+
+// Smooth meandering offsets
+let driftX = 0;
+let driftY = 0;
+let targetDriftX = (Math.random()*2 - 1) * wanderRange;
+let targetDriftY = (Math.random()*2 - 1) * wanderRange;
+
+// Edge stick timer
 let edgeStickTimer = 0;
-let emojiTimer = null;
-let animateId = null;
 
 // Canvas overlay for watermark
 const canvas = document.createElement('canvas');
@@ -120,10 +127,20 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
 function drawWatermark(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.31', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.21', canvas.width/2, canvas.height - 20);
+}
+
+// Smooth drift update
+function updateDrift(){
+  driftX += (targetDriftX - driftX) * wanderSpeed;
+  driftY += (targetDriftY - driftY) * wanderSpeed;
+
+  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * wanderRange;
+  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
 }
 
 // Nonlinear accelerometer adjustment
@@ -132,17 +149,16 @@ function adjustAccel(delta){
 }
 
 function handleMotion(event){
-  const now = performance.now();
-  if(now - lastMotion < 16) return; // throttle ~60fps
-  lastMotion = now;
-
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
+
   const deltaX = adjustAccel(acc.x - lastX);
   const deltaY = adjustAccel(acc.y - lastY);
   const deltaZ = adjustAccel(acc.z - lastZ);
   const shake = Math.sqrt(deltaX**2 + deltaY**2 + deltaZ**2);
 
-  lastX = acc.x; lastY = acc.y; lastZ = acc.z;
+  lastX = acc.x;
+  lastY = acc.y;
+  lastZ = acc.z;
 
   if(shake > lowMovementCutoff){
     velX += deltaX * shakeSensitivity;
@@ -151,18 +167,19 @@ function handleMotion(event){
     latestShake = Math.min(shake*0.02, 0.3);
   }
 
+  // Clamp depth scaling
   latestDepth = Math.min(Math.max(1 - (acc.z || 0) * depthSensitivity, 0.5), 1.5);
 }
 
-// Animation loop
+// Combined animation loop
 function animate(timestamp){
-  const centerX = window.innerWidth / 2 + emojiCenterOffsetX;
-  const centerY = window.innerHeight / 2 + emojiCenterOffsetY;
+  updateDrift();
+  drawWatermark();
 
-  // Center pull toward true center
-  velX += (centerX - posX) * centerPull;
-  velY += (centerY - posY) * centerPull;
-  velZ += (0 - posZ) * centerPull;
+  // Center pull + drift
+  velX += ((centerX + driftX) - posX) * centerPull;
+  velY += ((centerY + driftY) - posY) * centerPull;
+  velZ += (centerZ - posZ) * centerPull;
 
   velX *= damping;
   velY *= damping;
@@ -172,10 +189,10 @@ function animate(timestamp){
   posY += velY;
   posZ += velZ;
 
-  // Sphere boundary
+  // Sphere boundary with sticky edges
   let dx = posX - centerX;
   let dy = posY - centerY;
-  let dz = posZ - 0;
+  let dz = posZ - centerZ;
   let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
   if(dist > sphereRadius){
@@ -183,36 +200,44 @@ function animate(timestamp){
       edgeStickTimer = timestamp;
       const reaction = reactions[Math.floor(Math.random()*reactions.length)];
       emoji.textContent = reaction;
-      if(emojiTimer) clearTimeout(emojiTimer);
-      emojiTimer = setTimeout(()=>emoji.textContent = defaultEmoji, emojiHoldDuration);
+      setTimeout(()=>emoji.textContent = defaultEmoji, 1500);
     }
     if(timestamp - edgeStickTimer < stickDuration){
       velX = 0; velY = 0; velZ = 0;
     } else {
-      let nx = dx/dist, ny = dy/dist, nz = dz/dist;
+      let nx = dx/dist;
+      let ny = dy/dist;
+      let nz = dz/dist;
+
       posX = centerX + nx * sphereRadius;
       posY = centerY + ny * sphereRadius;
-      posZ = 0 + nz * sphereRadius;
+      posZ = centerZ + nz * sphereRadius;
+
       let dot = velX*nx + velY*ny + velZ*nz;
       velX -= 2*dot*nx*bounce;
       velY -= 2*dot*ny*bounce;
       velZ -= 2*dot*nz*bounce;
+
       edgeStickTimer = 0; 
     }
   }
 
-  // Tilt & breathing
-  tiltX += 0.05; tiltY += 0.03; tiltZ += 0.04;
-  breathePhase += 0.02;
-  const breatheScale = 1 + Math.sin(breathePhase)*0.02;
-  const breatheTiltX = Math.sin(breathePhase*0.5)*2;
-  const breatheTiltY = Math.sin(breathePhase*0.3)*2;
+  // Continuous tilt
+  tiltX += 0.05; 
+  tiltY += 0.03;
+  tiltZ += 0.04;
 
+  // Breathing
+  breathePhase += 0.02;
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02; 
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   
+
+  // Motion-based wobble
   const wobbleX = velY * 0.8; 
   const wobbleY = velX * 0.8; 
-  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
 
-  // Draw main emoji
+  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
@@ -222,11 +247,7 @@ function animate(timestamp){
     rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
 
-  // Watermark
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawWatermark();
-
-  animateId = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 }
 
 // iOS motion permission
@@ -236,7 +257,7 @@ function enableMotion() {
       if(response==='granted'){
         window.addEventListener('devicemotion', handleMotion);
         startBtn.style.display='none';
-        animateId = requestAnimationFrame(animate);
+        requestAnimationFrame(animate);
       }else{
         alert('Motion permission denied');
       }
@@ -244,20 +265,11 @@ function enableMotion() {
   }else{
     window.addEventListener('devicemotion', handleMotion);
     startBtn.style.display='none';
-    animateId = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
   }
 }
 
 startBtn.addEventListener('click', enableMotion);
-
-// Pause when page hidden
-document.addEventListener('visibilitychange', () => {
-  if(document.hidden){
-    cancelAnimationFrame(animateId);
-  } else {
-    animateId = requestAnimationFrame(animate);
-  }
-});
 
 window.addEventListener('resize', () => {
   posX = window.innerWidth/2;
@@ -265,7 +277,6 @@ window.addEventListener('resize', () => {
   sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  updateEmojiOffset();
 });
 </script>
 </body>
