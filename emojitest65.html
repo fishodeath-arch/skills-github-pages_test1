@@ -43,43 +43,27 @@
 
   #version {
     position: fixed;
-    bottom: 10px;
-    right: 10px;
-    color: rgba(255,255,255,0.3);
-    font-size: 16px;
-    z-index: 1;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 24px;
+    z-index: 9999;
     user-select: none;
     pointer-events: none;
+    font-weight: bold;
+    font-family: sans-serif;
   }
 </style>
 </head>
 <body>
-<div id="version">v0.09</div>
-
-<style>
-#version {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.8); /* brighter for visibility */
-  font-size: 24px;                  /* larger */
-  z-index: 9999;                     /* on top of everything */
-  user-select: none;
-  pointer-events: none;
-  font-weight: bold;
-  font-family: sans-serif;
-}
-</style>
-
 <div id="emoji">😎</div>
-
+<div id="version">v0.09</div>
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
-const versionDiv = document.getElementById('version');
 
 // Position and velocity
 let posX = window.innerWidth / 2;
@@ -193,7 +177,7 @@ function animate(){
   if(bounced){
     const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
-    setTimeout(()=>emoji.textContent = defaultEmoji, 2000); // longer edge display
+    setTimeout(()=>emoji.textContent = defaultEmoji, 2000);
 
     rotationX = (Math.random()*maxRotation*2 - maxRotation);
     rotationY = (Math.random()*maxRotation*2 - maxRotation);
