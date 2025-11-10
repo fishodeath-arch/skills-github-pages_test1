@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Floaty Shake Emoji</title>
+<title>3D Shake Emoji</title>
 <style>
   body {
     margin: 0;
@@ -14,6 +14,7 @@
     touch-action: none;
     font-family: sans-serif;
     position: relative;
+    perspective: 1000px; /* gives 3D rotation depth */
   }
 
   #emoji {
@@ -22,6 +23,7 @@
     top: 0;
     left: 0;
     transform: translate(50%, 50%);
+    transform-style: preserve-3d;
   }
 
   #startBtn {
@@ -48,20 +50,23 @@
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
 
-// Center position
+// Position and velocity
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
-
-// Velocity
+let posZ = 0;          // depth
 let velX = 0;
 let velY = 0;
+let velZ = 0;
 
-// Physics settings
-const damping = 0.95;          // higher damping = smoother, floatier
+// Settings
+const damping = 0.95;
 const bounce = 0.8;
-const shakeSensitivity = 2.0;  // slightly gentler shake response
-const centerPull = 0.02;       // reduced spring force
+const shakeSensitivity = 2.0;
+const centerPull = 0.02;
 const depthSensitivity = 0.05;
+const maxZ = 100;  // front edge
+const minZ = -100; // back edge
+const maxRotation = 15; // degrees on bounce
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -73,6 +78,9 @@ const reactions = ['😢','😡','😱','😆','🤯','😭'];
 // Variables for animation
 let latestShake = 0;
 let latestDepth = 1;
+let rotationX = 0;
+let rotationY = 0;
+let rotationZ = 0;
 
 function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
@@ -86,10 +94,11 @@ function handleMotion(event){
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Add velocity only from shake
+  // Only add velocity from shake
   if(shake > 1){
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
+    velZ += deltaZ * shakeSensitivity * 0.5; // gentle Z movement
   }
 
   latestDepth = 1 - (acc.z || 0) * depthSensitivity;
@@ -97,46 +106,71 @@ function handleMotion(event){
 }
 
 function animate(){
-  // Center pull (floaty)
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
+  const centerZ = 0;
+
+  // Pull toward center
   velX += (centerX - posX) * centerPull;
   velY += (centerY - posY) * centerPull;
+  velZ += (centerZ - posZ) * centerPull;
 
   // Apply damping
   velX *= damping;
   velY *= damping;
+  velZ *= damping;
 
-  // Update position
+  // Update positions
   posX += velX;
   posY += velY;
+  posZ += velZ;
 
-  // Emoji size
   const rect = emoji.getBoundingClientRect();
-  const halfWidth = rect.width / 2;
-  const halfHeight = rect.height / 2;
+  const halfWidth = rect.width/2;
+  const halfHeight = rect.height/2;
 
-  // Bounce and reactions
   let bounced = false;
-  if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced = true; }
-  if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced = true; }
-  if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced = true; }
-  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; bounced = true; }
+
+  // X/Y bounce
+  if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced=true; }
+  if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced=true; }
+  if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced=true; }
+  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; bounced=true; }
+
+  // Z bounce (front/back)
+  if(posZ < minZ){ posZ = minZ; velZ *= -bounce; bounced=true; }
+  if(posZ > maxZ){ posZ = maxZ; velZ *= -bounce; bounced=true; }
 
   if(bounced){
     const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
     setTimeout(()=>emoji.textContent = defaultEmoji, 800);
+
+    // Add random rotation on bounce
+    rotationX = (Math.random()*maxRotation*2 - maxRotation);
+    rotationY = (Math.random()*maxRotation*2 - maxRotation);
+    rotationZ = (Math.random()*maxRotation*2 - maxRotation);
+  } else {
+    // Slowly decay rotation back to 0
+    rotationX *= 0.9;
+    rotationY *= 0.9;
+    rotationZ *= 0.9;
   }
 
-  // Scale: shake + depth
   const finalScale = (1 + latestShake) * latestDepth;
-  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${finalScale})`;
+  emoji.style.transform = `
+    translate(${posX}px, ${posY}px)
+    translateZ(${posZ}px)
+    scale(${finalScale})
+    rotateX(${rotationX}deg)
+    rotateY(${rotationY}deg)
+    rotateZ(${rotationZ}deg)
+  `;
 
   requestAnimationFrame(animate);
 }
 
-// iOS 13+ permission
+// iOS motion permission
 function enableMotion() {
   if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
     DeviceMotionEvent.requestPermission().then(response=>{
@@ -159,8 +193,8 @@ startBtn.addEventListener('click', enableMotion);
 
 // Reset center if window resizes
 window.addEventListener('resize', () => {
-  posX = window.innerWidth / 2;
-  posY = window.innerHeight / 2;
+  posX = window.innerWidth/2;
+  posY = window.innerHeight/2;
 });
 </script>
 </body>
