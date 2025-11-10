@@ -196,12 +196,13 @@ function animate(timestamp){
   posY += velY;
   posZ += velZ;
 
-  // Glow trail
-  trailCtx.fillStyle = 'rgba(255,255,255,0.06)';
+  // Glow trail (toned down)
+  trailCtx.fillStyle = 'rgba(255,255,255,0.02)'; // subtle fading
   trailCtx.fillRect(0,0,trailCanvas.width, trailCanvas.height);
-  trailCtx.fillStyle = 'rgba(255,255,255,0.2)';
+
+  trailCtx.fillStyle = 'rgba(255,255,255,0.05)'; // current position glow
   trailCtx.beginPath();
-  trailCtx.arc(posX,posY, emoji.getBoundingClientRect().width/3,0,Math.PI*2);
+  trailCtx.arc(posX,posY, emoji.getBoundingClientRect().width/4,0,Math.PI*2);
   trailCtx.fill();
 
   // Sphere boundary with sticky edges
@@ -298,3 +299,4 @@ window.addEventListener('resize', () => {
 </script>
 </body>
 </html>
+
