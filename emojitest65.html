@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meandering 3D Shake Emoji</title>
+<title>Advanced 3D Shake Emoji</title>
 <style>
   body {
     margin: 0;
@@ -67,14 +67,18 @@ const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
 const maxRotation = 15;
-const wanderRange = 50; // maximum random drift offset for center pull
+const wanderRange = 50; // max meander offset
+const wanderSpeed = 0.05; // how quickly the meander offset changes
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
 
-// Emoji reactions
+// Emoji reactions (expanded pool)
 const defaultEmoji = '😎';
-const reactions = ['😢','😡','😱','😆','🤯','😭'];
+const reactions = [
+  '😢','😡','😱','😆','🤯','😭',
+  '😳','😬','🤪','😵','😤','😈','👻','💥','💫'
+];
 
 // Animation variables
 let latestShake = 0;
@@ -83,9 +87,20 @@ let rotationX = 0;
 let rotationY = 0;
 let rotationZ = 0;
 
-// Function to get a small random offset for meandering
-function randomOffset(range){
-  return (Math.random() * 2 - 1) * range;
+// Smooth meandering offsets
+let driftX = 0;
+let driftY = 0;
+let targetDriftX = (Math.random()*2 - 1) * wanderRange;
+let targetDriftY = (Math.random()*2 - 1) * wanderRange;
+
+// Function to gradually move current drift toward target drift
+function updateDrift(){
+  driftX += (targetDriftX - driftX) * wanderSpeed;
+  driftY += (targetDriftY - driftY) * wanderSpeed;
+
+  // Occasionally choose a new random target
+  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * wanderRange;
+  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
 }
 
 function handleMotion(event){
@@ -111,24 +126,23 @@ function handleMotion(event){
 }
 
 function animate(){
-  const baseCenterX = window.innerWidth / 2;
-  const baseCenterY = window.innerHeight / 2;
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
   const centerZ = 0;
 
-  // Add small random drift to center pull
-  const driftX = randomOffset(wanderRange);
-  const driftY = randomOffset(wanderRange);
+  updateDrift(); // smooth meandering
 
-  velX += ((baseCenterX + driftX) - posX) * centerPull;
-  velY += ((baseCenterY + driftY) - posY) * centerPull;
+  // Center pull with meander
+  velX += ((centerX + driftX) - posX) * centerPull;
+  velY += ((centerY + driftY) - posY) * centerPull;
   velZ += (centerZ - posZ) * centerPull;
 
-  // Apply damping
+  // Damping
   velX *= damping;
   velY *= damping;
   velZ *= damping;
 
-  // Update position
+  // Update positions
   posX += velX;
   posY += velY;
   posZ += velZ;
@@ -152,7 +166,7 @@ function animate(){
   if(bounced){
     const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
-    setTimeout(()=>emoji.textContent = defaultEmoji, 800);
+    setTimeout(()=>emoji.textContent = defaultEmoji, 1500); // stay longer
 
     // Random rotation on bounce
     rotationX = (Math.random()*maxRotation*2 - maxRotation);
