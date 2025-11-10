@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.21</title>
+<title>3D Shake Emoji v0.22</title>
 <style>
   body {
     margin: 0;
@@ -65,12 +65,10 @@ const bounce = 0.8;
 const shakeSensitivity = 4.0;
 const centerPull = 0.0025; 
 const depthSensitivity = 0.05;
-const maxZ = 100;
 const lowMovementCutoff = 0.15; 
-const maxRotation = 15;
-const wanderRange = 50;
-const wanderSpeed = 0.0125;
-const stickDuration = 1200; // sticky edge duration in ms
+const stickDuration = 1200; 
+const emojiHoldDuration = 3000; // 3 seconds
+const trailLength = 10; // number of trailing ghosts
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
@@ -96,25 +94,18 @@ let latestDepth = 1;
 let rotationX = 0;
 let rotationY = 0;
 let rotationZ = 0;
-
-// Continuous tilt angles
-let tiltX = 0;
-let tiltY = 0;
-let tiltZ = 0;
-
-// Breathing / floating variables
+let tiltX = 0, tiltY = 0, tiltZ = 0;
 let breathePhase = 0;
-
-// Smooth meandering offsets
-let driftX = 0;
-let driftY = 0;
-let targetDriftX = (Math.random()*2 - 1) * wanderRange;
-let targetDriftY = (Math.random()*2 - 1) * wanderRange;
-
-// Edge stick timer
+let driftX = 0, driftY = 0;
+let targetDriftX = (Math.random()*2 - 1) * 50;
+let targetDriftY = (Math.random()*2 - 1) * 50;
 let edgeStickTimer = 0;
+let emojiTimer = null;
 
-// Canvas overlay for watermark
+// Trail storage
+let trail = [];
+
+// Canvas overlay
 const canvas = document.createElement('canvas');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -127,20 +118,18 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
 function drawWatermark(){
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.21', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.22', canvas.width/2, canvas.height - 20);
 }
 
-// Smooth drift update
+// Drift update
 function updateDrift(){
-  driftX += (targetDriftX - driftX) * wanderSpeed;
-  driftY += (targetDriftY - driftY) * wanderSpeed;
-
-  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * wanderRange;
-  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
+  driftX += (targetDriftX - driftX) * 0.0125;
+  driftY += (targetDriftY - driftY) * 0.0125;
+  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * 50;
+  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * 50;
 }
 
 // Nonlinear accelerometer adjustment
@@ -150,7 +139,6 @@ function adjustAccel(delta){
 
 function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
-
   const deltaX = adjustAccel(acc.x - lastX);
   const deltaY = adjustAccel(acc.y - lastY);
   const deltaZ = adjustAccel(acc.z - lastZ);
@@ -167,11 +155,10 @@ function handleMotion(event){
     latestShake = Math.min(shake*0.02, 0.3);
   }
 
-  // Clamp depth scaling
   latestDepth = Math.min(Math.max(1 - (acc.z || 0) * depthSensitivity, 0.5), 1.5);
 }
 
-// Combined animation loop
+// Animation loop
 function animate(timestamp){
   updateDrift();
   drawWatermark();
@@ -189,7 +176,7 @@ function animate(timestamp){
   posY += velY;
   posZ += velZ;
 
-  // Sphere boundary with sticky edges
+  // Sphere boundary
   let dx = posX - centerX;
   let dy = posY - centerY;
   let dz = posZ - centerZ;
@@ -200,44 +187,53 @@ function animate(timestamp){
       edgeStickTimer = timestamp;
       const reaction = reactions[Math.floor(Math.random()*reactions.length)];
       emoji.textContent = reaction;
-      setTimeout(()=>emoji.textContent = defaultEmoji, 1500);
+
+      if(emojiTimer) clearTimeout(emojiTimer);
+      emojiTimer = setTimeout(()=>emoji.textContent = defaultEmoji, emojiHoldDuration);
     }
     if(timestamp - edgeStickTimer < stickDuration){
       velX = 0; velY = 0; velZ = 0;
     } else {
-      let nx = dx/dist;
-      let ny = dy/dist;
-      let nz = dz/dist;
-
+      let nx = dx/dist, ny = dy/dist, nz = dz/dist;
       posX = centerX + nx * sphereRadius;
       posY = centerY + ny * sphereRadius;
       posZ = centerZ + nz * sphereRadius;
-
       let dot = velX*nx + velY*ny + velZ*nz;
       velX -= 2*dot*nx*bounce;
       velY -= 2*dot*ny*bounce;
       velZ -= 2*dot*nz*bounce;
-
       edgeStickTimer = 0; 
     }
   }
 
-  // Continuous tilt
-  tiltX += 0.05; 
-  tiltY += 0.03;
-  tiltZ += 0.04;
-
-  // Breathing
+  // Tilt & breathing
+  tiltX += 0.05; tiltY += 0.03; tiltZ += 0.04;
   breathePhase += 0.02;
-  const breatheScale = 1 + Math.sin(breathePhase)*0.02; 
-  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   
-  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02;
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;
 
-  // Motion-based wobble
+  // Motion wobble
   const wobbleX = velY * 0.8; 
   const wobbleY = velX * 0.8; 
-
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
+
+  // Push current position to trail
+  trail.push({x: posX, y: posY, z: posZ, scale: finalScale, emoji: emoji.textContent});
+  if(trail.length > trailLength) trail.shift();
+
+  // Draw trail
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawWatermark();
+  trail.forEach((t, i) => {
+    ctx.globalAlpha = (i+1)/trail.length * 0.6;
+    ctx.font = `${12 * t.scale}vw sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(t.emoji, t.x, t.y);
+  });
+  ctx.globalAlpha = 1;
+
+  // Draw main emoji (invisible because trail handles rendering)
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
