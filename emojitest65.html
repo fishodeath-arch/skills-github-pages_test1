@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shake Emoji with Reactions</title>
+<title>Smooth Shake Emoji</title>
 <style>
   body {
     margin: 0;
@@ -22,7 +22,6 @@
     top: 0;
     left: 0;
     transform: translate(50%, 50%);
-    transition: transform 0.03s linear;
   }
 
   #startBtn {
@@ -49,32 +48,34 @@
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
 
-// Center position
+// Physics variables
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
-
-// Velocity
 let velX = 0;
 let velY = 0;
 
-// Physics settings
-const damping = 0.9;
+// Settings
+const damping = 0.92;
 const bounce = 0.8;
 const shakeSensitivity = 2.5;
 const centerPull = 0.05;
 const depthSensitivity = 0.05;
 
-// Last acceleration for shake detection
+// Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
 
-// Default emoji and reaction set
+// Reaction emojis
 const defaultEmoji = '😎';
-const reactions = ['😢', '😡', '😱', '😆', '🤯', '😭'];
+const reactions = ['😢','😡','😱','😆','🤯','😭'];
 
-function handleMotion(event) {
+// Variables to store latest state for animation frame
+let latestShake = 0;
+let latestDepth = 1;
+
+// Device motion handler
+function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
 
-  // Shake detection
   const deltaX = acc.x - lastX;
   const deltaY = acc.y - lastY;
   const deltaZ = acc.z - lastZ;
@@ -84,12 +85,21 @@ function handleMotion(event) {
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Velocity only from shake
-  if(shake > 1) {
+  // Shake moves the emoji
+  if(shake > 1){
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
   }
 
+  // Store depth scale for z-axis
+  latestDepth = 1 - (acc.z || 0) * depthSensitivity;
+
+  // Store shake for scale effect
+  latestShake = Math.min(shake*0.02, 0.3);
+}
+
+// Animation loop using requestAnimationFrame
+function animate(){
   // Center pull
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
@@ -111,49 +121,46 @@ function handleMotion(event) {
 
   // Bounce and reaction
   let bounced = false;
+  if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced = true; }
+  if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced = true; }
+  if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced = true; }
+  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; }
 
-  if(posX < halfWidth) { posX = halfWidth; velX *= -bounce; bounced = true; }
-  if(posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; bounced = true; }
-  if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; bounced = true; }
-  if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; bounced = true; }
-
-  // If bounced, change emoji
-  if(bounced) {
-    const reaction = reactions[Math.floor(Math.random() * reactions.length)];
+  if(bounced){
+    const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
-    setTimeout(() => emoji.textContent = defaultEmoji, 800); // revert to default
+    setTimeout(()=>emoji.textContent = defaultEmoji, 800);
   }
 
-  // Scale: shake + depth (Z-axis)
-  const baseScale = 1 + Math.min(shake*0.02, 0.3);
-  const depthScale = 1 - (acc.z || 0) * depthSensitivity;
-  const finalScale = baseScale * depthScale;
+  const finalScale = (1 + latestShake) * latestDepth;
 
   emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${finalScale})`;
+
+  requestAnimationFrame(animate);
 }
 
-// iOS 13+ permission
+// iOS motion permission
 function enableMotion() {
-  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-    DeviceMotionEvent.requestPermission()
-      .then(response => {
-        if(response === 'granted') {
-          window.addEventListener('devicemotion', handleMotion);
-          startBtn.style.display = 'none';
-        } else {
-          alert('Motion permission denied');
-        }
-      })
-      .catch(console.error);
-  } else {
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(response=>{
+      if(response === 'granted'){
+        window.addEventListener('devicemotion', handleMotion);
+        startBtn.style.display='none';
+        requestAnimationFrame(animate);
+      }else{
+        alert('Motion permission denied');
+      }
+    }).catch(console.error);
+  }else{
     window.addEventListener('devicemotion', handleMotion);
-    startBtn.style.display = 'none';
+    startBtn.style.display='none';
+    requestAnimationFrame(animate);
   }
 }
 
 startBtn.addEventListener('click', enableMotion);
 
-// Reset center if window resizes
+// Reset on resize
 window.addEventListener('resize', () => {
   posX = window.innerWidth / 2;
   posY = window.innerHeight / 2;
