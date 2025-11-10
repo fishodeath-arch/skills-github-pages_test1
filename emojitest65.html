@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.14</title>
+<title>3D Shake Emoji v0.15</title>
 <style>
   body {
     margin: 0;
@@ -92,6 +92,9 @@ let tiltX = 0;
 let tiltY = 0;
 let tiltZ = 0;
 
+// Breathing / floating variables
+let breathePhase = 0;
+
 // Smooth meandering offsets
 let driftX = 0;
 let driftY = 0;
@@ -115,7 +118,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.14', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.15', canvas.width/2, canvas.height - 20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
@@ -210,13 +213,19 @@ function animate(){
   tiltY += 0.03;
   tiltZ += 0.04;
 
-  const finalScale = (1 + latestShake) * latestDepth;
+  // --- Breathing / floating scale & rotation ---
+  breathePhase += 0.02;
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02; // small pulsate
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   // tiny rotation X
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   // tiny rotation Y
+
+  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
-    rotateX(${rotationX + Math.sin(tiltX)}deg)
-    rotateY(${rotationY + Math.sin(tiltY)}deg)
+    rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX}deg)
+    rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY}deg)
     rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
 
