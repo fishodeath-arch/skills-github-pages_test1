@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.17</title>
+<title>3D Shake Emoji v0.18</title>
 <style>
   body {
     margin: 0;
@@ -24,6 +24,7 @@
     left: 0;
     transform: translate(50%, 50%);
     transform-style: preserve-3d;
+    text-shadow: 0 0 5px #fff;
   }
 
   #startBtn {
@@ -69,6 +70,7 @@ const lowMovementCutoff = 0.15;
 const maxRotation = 15;
 const wanderRange = 50;
 const wanderSpeed = 0.0125;
+const stickDuration = 500; // milliseconds to stick on edge
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
@@ -107,7 +109,22 @@ let driftY = 0;
 let targetDriftX = (Math.random()*2 - 1) * wanderRange;
 let targetDriftY = (Math.random()*2 - 1) * wanderRange;
 
-// --- Canvas Overlay for Version Watermark ---
+// Edge stick timer
+let edgeStickTimer = 0;
+
+// Glow trail canvas
+const trailCanvas = document.createElement('canvas');
+trailCanvas.width = window.innerWidth;
+trailCanvas.height = window.innerHeight;
+trailCanvas.style.position = 'fixed';
+trailCanvas.style.top = '0';
+trailCanvas.style.left = '0';
+trailCanvas.style.pointerEvents = 'none';
+trailCanvas.style.zIndex = 2147483646;
+document.body.appendChild(trailCanvas);
+const trailCtx = trailCanvas.getContext('2d');
+
+// Canvas overlay for watermark
 const canvas = document.createElement('canvas');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -124,7 +141,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.17', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.18', canvas.width/2, canvas.height - 20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
@@ -165,7 +182,7 @@ function handleMotion(event){
   latestDepth = 1 - (acc.z || 0) * depthSensitivity;
 }
 
-function animate(){
+function animate(timestamp){
   // Center pull + drift
   velX += ((centerX + driftX) - posX) * centerPull;
   velY += ((centerY + driftY) - posY) * centerPull;
@@ -179,37 +196,45 @@ function animate(){
   posY += velY;
   posZ += velZ;
 
-  // Sphere boundary
+  // Glow trail
+  trailCtx.fillStyle = 'rgba(255,255,255,0.06)';
+  trailCtx.fillRect(0,0,trailCanvas.width, trailCanvas.height);
+  trailCtx.fillStyle = 'rgba(255,255,255,0.2)';
+  trailCtx.beginPath();
+  trailCtx.arc(posX,posY, emoji.getBoundingClientRect().width/3,0,Math.PI*2);
+  trailCtx.fill();
+
+  // Sphere boundary with sticky edges
   let dx = posX - centerX;
   let dy = posY - centerY;
   let dz = posZ - centerZ;
   let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
   if(dist > sphereRadius){
-    let nx = dx/dist;
-    let ny = dy/dist;
-    let nz = dz/dist;
+    if(!edgeStickTimer){
+      edgeStickTimer = timestamp;
+      const reaction = reactions[Math.floor(Math.random()*reactions.length)];
+      emoji.textContent = reaction;
+      setTimeout(()=>emoji.textContent = defaultEmoji, 1500);
+    }
+    if(timestamp - edgeStickTimer < stickDuration){
+      velX = 0; velY = 0; velZ = 0; // stick
+    } else {
+      let nx = dx/dist;
+      let ny = dy/dist;
+      let nz = dz/dist;
 
-    posX = centerX + nx * sphereRadius;
-    posY = centerY + ny * sphereRadius;
-    posZ = centerZ + nz * sphereRadius;
+      posX = centerX + nx * sphereRadius;
+      posY = centerY + ny * sphereRadius;
+      posZ = centerZ + nz * sphereRadius;
 
-    let dot = velX*nx + velY*ny + velZ*nz;
-    velX -= 2*dot*nx*bounce;
-    velY -= 2*dot*ny*bounce;
-    velZ -= 2*dot*nz*bounce;
+      let dot = velX*nx + velY*ny + velZ*nz;
+      velX -= 2*dot*nx*bounce;
+      velY -= 2*dot*ny*bounce;
+      velZ -= 2*dot*nz*bounce;
 
-    const reaction = reactions[Math.floor(Math.random()*reactions.length)];
-    emoji.textContent = reaction;
-    setTimeout(()=>emoji.textContent = defaultEmoji, 2000);
-
-    rotationX = (Math.random()*maxRotation*2 - maxRotation);
-    rotationY = (Math.random()*maxRotation*2 - maxRotation);
-    rotationZ = (Math.random()*maxRotation*2 - maxRotation);
-  } else {
-    rotationX *= 0.9;
-    rotationY *= 0.9;
-    rotationZ *= 0.9;
+      edgeStickTimer = 0; // reset
+    }
   }
 
   // Continuous tilt
@@ -265,6 +290,8 @@ window.addEventListener('resize', () => {
   posX = window.innerWidth/2;
   posY = window.innerHeight/2;
   sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+  trailCanvas.width = window.innerWidth;
+  trailCanvas.height = window.innerHeight;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 });
