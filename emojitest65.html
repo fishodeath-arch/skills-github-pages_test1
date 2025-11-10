@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.21</title>
+<title>3D Shake Emoji v0.22</title>
 <style>
   body {
     margin: 0;
@@ -25,7 +25,9 @@
     width: 80vmin;
     height: 80vmin;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), rgba(255,255,255,0) 70%), radial-gradient(circle at 70% 70%, rgba(255,255,255,0.05), rgba(255,255,255,0) 70%), #444;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), rgba(255,255,255,0) 70%), 
+                radial-gradient(circle at 70% 70%, rgba(255,255,255,0.05), rgba(255,255,255,0) 70%), 
+                #444;
     box-shadow: inset -10px -10px 40px rgba(255,255,255,0.05), inset 5px 5px 20px rgba(0,0,0,0.4), 0 0 20px rgba(0,0,0,0.3);
     display: flex;
     align-items: center;
@@ -120,19 +122,23 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.21', canvas.width/2, canvas.height-20);
+  ctx.fillText('v0.22', canvas.width/2, canvas.height-20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
 
-// Compute center of the visual sphere
+// Compute sphere metrics
 function updateSphereMetrics(){
   const rect = sphere.getBoundingClientRect();
   centerX = rect.left + rect.width/2;
   centerY = rect.top + rect.height/2;
   sphereRadius = rect.width/2 - 30;
-  posX = centerX;
-  posY = centerY;
+
+  // Only initialize position if undefined (first frame)
+  if(posX === undefined || posY === undefined){
+    posX = centerX;
+    posY = centerY;
+  }
 }
 
 updateSphereMetrics();
