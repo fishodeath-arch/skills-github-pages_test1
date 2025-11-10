@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.15</title>
+<title>3D Shake Emoji v0.16</title>
 <style>
   body {
     margin: 0;
@@ -69,6 +69,7 @@ const minZ = -100;
 const maxRotation = 15;
 const wanderRange = 50;
 const wanderSpeed = 0.0125;
+const lowMovementCutoff = 0.15; // ignores very small shakes
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -118,7 +119,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.15', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.16', canvas.width/2, canvas.height - 20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
@@ -149,14 +150,15 @@ function handleMotion(event){
   lastY = acc.y;
   lastZ = acc.z;
 
-  if(shake > 0.1){
+  if(shake > lowMovementCutoff){ // apply cutoff
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
     velZ += deltaZ * shakeSensitivity * 0.5;
+
+    latestShake = Math.min(shake*0.02, 0.3);
   }
 
   latestDepth = 1 - (acc.z || 0) * depthSensitivity;
-  latestShake = Math.min(shake*0.02, 0.3);
 }
 
 function animate(){
@@ -208,24 +210,28 @@ function animate(){
     rotationZ *= 0.9;
   }
 
-  // --- Subtle continuous tilt ---
+  // --- Continuous tilt ---
   tiltX += 0.05; 
   tiltY += 0.03;
   tiltZ += 0.04;
 
   // --- Breathing / floating scale & rotation ---
   breathePhase += 0.02;
-  const breatheScale = 1 + Math.sin(breathePhase)*0.02; // small pulsate
-  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   // tiny rotation X
-  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   // tiny rotation Y
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02; 
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   
+
+  // --- Motion-based wobble (leans in direction of velocity) ---
+  const wobbleX = velY * 0.8; // tilt based on Y velocity
+  const wobbleY = velX * 0.8; // tilt based on X velocity
 
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
-    rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX}deg)
-    rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY}deg)
+    rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX + wobbleX}deg)
+    rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY + wobbleY}deg)
     rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
 
