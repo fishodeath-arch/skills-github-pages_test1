@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji</title>
+<title>Highly Reactive 3D Shake Emoji</title>
 <style>
   body {
     margin: 0;
@@ -14,7 +14,7 @@
     touch-action: none;
     font-family: sans-serif;
     position: relative;
-    perspective: 1000px; /* gives 3D rotation depth */
+    perspective: 1000px;
   }
 
   #emoji {
@@ -53,7 +53,7 @@ const startBtn = document.getElementById('startBtn');
 // Position and velocity
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
-let posZ = 0;          // depth
+let posZ = 0;
 let velX = 0;
 let velY = 0;
 let velZ = 0;
@@ -61,12 +61,12 @@ let velZ = 0;
 // Settings
 const damping = 0.95;
 const bounce = 0.8;
-const shakeSensitivity = 2.0;
-const centerPull = 0.02;
+const shakeSensitivity = 4.0; // increased sensitivity
+const centerPull = 0.01;      // reduced pull for floaty motion
 const depthSensitivity = 0.05;
-const maxZ = 100;  // front edge
-const minZ = -100; // back edge
-const maxRotation = 15; // degrees on bounce
+const maxZ = 100;
+const minZ = -100;
+const maxRotation = 15;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -75,7 +75,7 @@ let lastX = 0, lastY = 0, lastZ = 0;
 const defaultEmoji = '😎';
 const reactions = ['😢','😡','😱','😆','🤯','😭'];
 
-// Variables for animation
+// Animation variables
 let latestShake = 0;
 let latestDepth = 1;
 let rotationX = 0;
@@ -94,11 +94,10 @@ function handleMotion(event){
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Only add velocity from shake
   if(shake > 1){
     velX += deltaX * shakeSensitivity;
     velY -= deltaY * shakeSensitivity;
-    velZ += deltaZ * shakeSensitivity * 0.5; // gentle Z movement
+    velZ += deltaZ * shakeSensitivity * 0.5;
   }
 
   latestDepth = 1 - (acc.z || 0) * depthSensitivity;
@@ -110,17 +109,17 @@ function animate(){
   const centerY = window.innerHeight / 2;
   const centerZ = 0;
 
-  // Pull toward center
+  // Reduced pull toward center
   velX += (centerX - posX) * centerPull;
   velY += (centerY - posY) * centerPull;
   velZ += (centerZ - posZ) * centerPull;
 
-  // Apply damping
+  // Damping
   velX *= damping;
   velY *= damping;
   velZ *= damping;
 
-  // Update positions
+  // Update position
   posX += velX;
   posY += velY;
   posZ += velZ;
@@ -146,12 +145,11 @@ function animate(){
     emoji.textContent = reaction;
     setTimeout(()=>emoji.textContent = defaultEmoji, 800);
 
-    // Add random rotation on bounce
+    // Random rotation on bounce
     rotationX = (Math.random()*maxRotation*2 - maxRotation);
     rotationY = (Math.random()*maxRotation*2 - maxRotation);
     rotationZ = (Math.random()*maxRotation*2 - maxRotation);
   } else {
-    // Slowly decay rotation back to 0
     rotationX *= 0.9;
     rotationY *= 0.9;
     rotationZ *= 0.9;
@@ -191,7 +189,6 @@ function enableMotion() {
 
 startBtn.addEventListener('click', enableMotion);
 
-// Reset center if window resizes
 window.addEventListener('resize', () => {
   posX = window.innerWidth/2;
   posY = window.innerHeight/2;
