@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Highly Reactive 3D Shake Emoji</title>
+<title>Meandering 3D Shake Emoji</title>
 <style>
   body {
     margin: 0;
@@ -61,12 +61,13 @@ let velZ = 0;
 // Settings
 const damping = 0.95;
 const bounce = 0.8;
-const shakeSensitivity = 4.0; // increased sensitivity
-const centerPull = 0.01;      // reduced pull for floaty motion
+const shakeSensitivity = 4.0;
+const centerPull = 0.01;
 const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
 const maxRotation = 15;
+const wanderRange = 50; // maximum random drift offset for center pull
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -81,6 +82,11 @@ let latestDepth = 1;
 let rotationX = 0;
 let rotationY = 0;
 let rotationZ = 0;
+
+// Function to get a small random offset for meandering
+function randomOffset(range){
+  return (Math.random() * 2 - 1) * range;
+}
 
 function handleMotion(event){
   const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
@@ -105,16 +111,19 @@ function handleMotion(event){
 }
 
 function animate(){
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
+  const baseCenterX = window.innerWidth / 2;
+  const baseCenterY = window.innerHeight / 2;
   const centerZ = 0;
 
-  // Reduced pull toward center
-  velX += (centerX - posX) * centerPull;
-  velY += (centerY - posY) * centerPull;
+  // Add small random drift to center pull
+  const driftX = randomOffset(wanderRange);
+  const driftY = randomOffset(wanderRange);
+
+  velX += ((baseCenterX + driftX) - posX) * centerPull;
+  velY += ((baseCenterY + driftY) - posY) * centerPull;
   velZ += (centerZ - posZ) * centerPull;
 
-  // Damping
+  // Apply damping
   velX *= damping;
   velY *= damping;
   velZ *= damping;
@@ -134,7 +143,7 @@ function animate(){
   if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced=true; }
   if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced=true; }
   if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced=true; }
-  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; bounced=true; }
+  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; }
 
   // Z bounce (front/back)
   if(posZ < minZ){ posZ = minZ; velZ *= -bounce; bounced=true; }
@@ -150,6 +159,7 @@ function animate(){
     rotationY = (Math.random()*maxRotation*2 - maxRotation);
     rotationZ = (Math.random()*maxRotation*2 - maxRotation);
   } else {
+    // Slowly decay rotation back to 0
     rotationX *= 0.9;
     rotationY *= 0.9;
     rotationZ *= 0.9;
