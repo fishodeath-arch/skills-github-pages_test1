@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.12</title>
+<title>3D Shake Emoji v0.13</title>
 <style>
   body {
     margin: 0;
@@ -40,27 +40,11 @@
     background: #ff9800;
     color: white;
   }
-
-  /* Version watermark overlay */
-  #versionOverlay {
-    position: fixed;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
-    font-size: 28px;
-    font-weight: bold;
-    pointer-events: none;
-    user-select: none;
-    z-index: 2147483647; /* maximum z-index */
-  }
 </style>
 </head>
 <body>
 <div id="emoji">😎</div>
 <button id="startBtn">Tap to Enable Motion</button>
-<!-- Always-visible version watermark -->
-<div id="versionOverlay">v0.12</div>
 
 <script>
 const emoji = document.getElementById('emoji');
@@ -78,7 +62,7 @@ let velZ = 0;
 const damping = 0.95;
 const bounce = 0.8;
 const shakeSensitivity = 4.0;
-const centerPull = 0.0025; // ultra-smooth
+const centerPull = 0.0025;
 const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
@@ -108,6 +92,28 @@ let driftX = 0;
 let driftY = 0;
 let targetDriftX = (Math.random()*2 - 1) * wanderRange;
 let targetDriftY = (Math.random()*2 - 1) * wanderRange;
+
+// --- Canvas Overlay for Version Watermark ---
+const canvas = document.createElement('canvas');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+canvas.style.position = 'fixed';
+canvas.style.top = '0';
+canvas.style.left = '0';
+canvas.style.pointerEvents = 'none';
+canvas.style.zIndex = 2147483647; // guaranteed top layer
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
+
+function drawWatermark(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.fillText('v0.13', canvas.width/2, canvas.height - 20);
+  requestAnimationFrame(drawWatermark);
+}
+drawWatermark();
 
 // Smooth drift update
 function updateDrift(){
@@ -231,6 +237,8 @@ startBtn.addEventListener('click', enableMotion);
 window.addEventListener('resize', () => {
   posX = window.innerWidth/2;
   posY = window.innerHeight/2;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 });
 </script>
 </body>
