@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Shake Emoji v0.32</title>
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+    background: #222;
+    overflow: hidden;
+    touch-action: none;
+    font-family: sans-serif;
+    perspective: 1000px;
+    position: relative;
+  }
+
+  #emojiWrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* allow touches to pass through */
+  }
+
+  #emoji {
+    font-size: 18vw; /* 50% bigger */
+    transform-style: preserve-3d;
+    will-change: transform;
+    text-shadow: 0 0 5px #fff;
+  }
+
+  #startBtn {
+    position: absolute;
+    z-index: 100;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 25px;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 10px;
+    border: none;
+    background: #ff9800;
+    color: white;
+  }
+</style>
+</head>
+<body>
+<div id="emojiWrapper">
+  <div id="emoji">😎</div>
+</div>
+<button id="startBtn">Tap to Enable Motion</button>
+
+<script>
+const emoji = document.getElementById('emoji');
+const startBtn = document.getElementById('startBtn');
+
+// Motion physics variables
+let posX = 0; // relative to center
+let posY = 0;
+let posZ = 0;
+let velX = 0;
+let velY = 0;
+let velZ = 0;
+
+// Settings
+const damping = 0.95;
+const bounce = 0.8;
+const shakeSensitivity = 4.0;
+const centerPull = 0.0025; 
+const depthSensitivity = 0.05;
+const lowMovementCutoff = 0.15; 
+const stickDuration = 1200; 
+const emojiHoldDuration = 3000; // 3 seconds
+
+// Sphere boundary radius
+let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+
+// Shake detection
+let lastX = 0, lastY = 0, lastZ = 0;
+let lastMotion = 0;
+
+// Emoji reactions
+const defaultEmoji = '😎';
+const reactions = [
+  '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
+  '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳',
+  '😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤',
+  '😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫'
+];
+
+// Animation variables
+let latestShake = 0;
+let latestDepth = 1;
+let rotationX = 0, rotationY = 0, rotationZ = 0;
+let tiltX = 0, tiltY = 0, tiltZ = 0;
+let breathePhase = 0;
+let edgeStickTimer = 0;
+let emojiTimer = null;
+let animateId = null;
+
+// Canvas overlay for watermark
+const canvas = document.createElement('canvas');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+canvas.style.position = 'fixed';
+canvas.style.top = '0';
+canvas.style.left = '0';
+canvas.style.pointerEvents = 'none';
+canvas.style.zIndex = 2147483647; 
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
+
+function drawWatermark(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.fillText('v0.32', canvas.width/2, canvas.height - 20);
+}
+
+// Nonlinear accelerometer adjustment
+function adjustAccel(delta){
+  return Math.sign(delta) * Math.pow(Math.abs(delta), 0.7);
+}
+
+function handleMotion(event){
+  const now = performance.now();
+  if(now - lastMotion < 16) return; // throttle ~60fps
+  lastMotion = now;
+
+  const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
+  const deltaX = adjustAccel(acc.x - lastX);
+  const deltaY = adjustAccel(acc.y - lastY);
+  const deltaZ = adjustAccel(acc.z - lastZ);
+  const shake = Math.sqrt(deltaX**2 + deltaY**2 + deltaZ**2);
+
+  lastX = acc.x; lastY = acc.y; lastZ = acc.z;
+
+  if(shake > lowMovementCutoff){
+    velX += deltaX * shakeSensitivity;
+    velY -= deltaY * shakeSensitivity;
+    velZ += deltaZ * shakeSensitivity * 0.5;
+    latestShake = Math.min(shake*0.02, 0.3);
+  }
+
+  latestDepth = Math.min(Math.max(1 - (acc.z || 0) * depthSensitivity, 0.5), 1.5);
+}
+
+// Animation loop
+function animate(timestamp){
+  // Center is always (0,0) because wrapper handles visual centering
+  const centerX = 0;
+  const centerY = 0;
+
+  // Center pull
+  velX += (centerX - posX) * centerPull;
+  velY += (centerY - posY) * centerPull;
+  velZ += (0 - posZ) * centerPull;
+
+  velX *= damping;
+  velY *= damping;
+  velZ *= damping;
+
+  posX += velX;
+  posY += velY;
+  posZ += velZ;
+
+  // Sphere boundary
+  let dist = Math.sqrt(posX*posX + posY*posY + posZ*posZ);
+  if(dist > sphereRadius){
+    if(!edgeStickTimer){
+      edgeStickTimer = timestamp;
+      const reaction = reactions[Math.floor(Math.random()*reactions.length)];
+      emoji.textContent = reaction;
+      if(emojiTimer) clearTimeout(emojiTimer);
+      emojiTimer = setTimeout(()=>emoji.textContent = defaultEmoji, emojiHoldDuration);
+    }
+    if(timestamp - edgeStickTimer < stickDuration){
+      velX = 0; velY = 0; velZ = 0;
+    } else {
+      const nx = posX/dist;
+      const ny = posY/dist;
+      const nz = posZ/dist;
+      posX = nx * sphereRadius;
+      posY = ny * sphereRadius;
+      posZ = nz * sphereRadius;
+      const dot = velX*nx + velY*ny + velZ*nz;
+      velX -= 2*dot*nx*bounce;
+      velY -= 2*dot*ny*bounce;
+      velZ -= 2*dot*nz*bounce;
+      edgeStickTimer = 0;
+    }
+  }
+
+  // Tilt & breathing
+  tiltX += 0.05; tiltY += 0.03; tiltZ += 0.04;
+  breathePhase += 0.02;
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02;
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;
+
+  const wobbleX = velY * 0.8; 
+  const wobbleY = velX * 0.8; 
+  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
+
+  // Draw main emoji (relative to wrapper center)
+  emoji.style.transform = `
+    translate(${posX}px, ${posY}px)
+    translateZ(${posZ}px)
+    scale(${finalScale})
+    rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX + wobbleX}deg)
+    rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY + wobbleY}deg)
+    rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
+  `;
+
+  drawWatermark();
+  animateId = requestAnimationFrame(animate);
+}
+
+// iOS motion permission
+function enableMotion() {
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(response=>{
+      if(response==='granted'){
+        window.addEventListener('devicemotion', handleMotion);
+        startBtn.style.display='none';
+        animateId = requestAnimationFrame(animate);
+      } else alert('Motion permission denied');
+    }).catch(console.error);
+  } else {
+    window.addEventListener('devicemotion', handleMotion);
+    startBtn.style.display='none';
+    animateId = requestAnimationFrame(animate);
+  }
+}
+
+startBtn.addEventListener('click', enableMotion);
+
+// Pause when page hidden
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) cancelAnimationFrame(animateId);
+  else animateId = requestAnimationFrame(animate);
+});
+
+window.addEventListener('resize', () => {
+  sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
