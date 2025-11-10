@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Advanced 3D Shake Emoji</title>
+<title>3D Shake Emoji v0.09</title>
 <style>
   body {
     margin: 0;
@@ -40,15 +40,28 @@
     background: #ff9800;
     color: white;
   }
+
+  #version {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    color: rgba(255,255,255,0.3);
+    font-size: 16px;
+    z-index: 1;
+    user-select: none;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <div id="emoji">😎</div>
+<div id="version">v0.09</div>
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
+const versionDiv = document.getElementById('version');
 
 // Position and velocity
 let posX = window.innerWidth / 2;
@@ -67,8 +80,8 @@ const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
 const maxRotation = 15;
-const wanderRange = 50; // max meander offset
-const wanderSpeed = 0.05; // how quickly the meander offset changes
+const wanderRange = 50;
+const wanderSpeed = 0.05;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -93,12 +106,11 @@ let driftY = 0;
 let targetDriftX = (Math.random()*2 - 1) * wanderRange;
 let targetDriftY = (Math.random()*2 - 1) * wanderRange;
 
-// Function to gradually move current drift toward target drift
+// Smooth drift update
 function updateDrift(){
   driftX += (targetDriftX - driftX) * wanderSpeed;
   driftY += (targetDriftY - driftY) * wanderSpeed;
 
-  // Occasionally choose a new random target
   if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * wanderRange;
   if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
 }
@@ -132,17 +144,14 @@ function animate(){
 
   updateDrift(); // smooth meandering
 
-  // Center pull with meander
   velX += ((centerX + driftX) - posX) * centerPull;
   velY += ((centerY + driftY) - posY) * centerPull;
   velZ += (centerZ - posZ) * centerPull;
 
-  // Damping
   velX *= damping;
   velY *= damping;
   velZ *= damping;
 
-  // Update positions
   posX += velX;
   posY += velY;
   posZ += velZ;
@@ -157,23 +166,21 @@ function animate(){
   if(posX < halfWidth){ posX = halfWidth; velX *= -bounce; bounced=true; }
   if(posX > window.innerWidth - halfWidth){ posX = window.innerWidth - halfWidth; velX *= -bounce; bounced=true; }
   if(posY < halfHeight){ posY = halfHeight; velY *= -bounce; bounced=true; }
-  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; }
+  if(posY > window.innerHeight - halfHeight){ posY = window.innerHeight - halfHeight; velY *= -bounce; bounced=true; }
 
-  // Z bounce (front/back)
+  // Z bounce
   if(posZ < minZ){ posZ = minZ; velZ *= -bounce; bounced=true; }
   if(posZ > maxZ){ posZ = maxZ; velZ *= -bounce; bounced=true; }
 
   if(bounced){
     const reaction = reactions[Math.floor(Math.random()*reactions.length)];
     emoji.textContent = reaction;
-    setTimeout(()=>emoji.textContent = defaultEmoji, 1500); // stay longer
+    setTimeout(()=>emoji.textContent = defaultEmoji, 2000); // longer edge display
 
-    // Random rotation on bounce
     rotationX = (Math.random()*maxRotation*2 - maxRotation);
     rotationY = (Math.random()*maxRotation*2 - maxRotation);
     rotationZ = (Math.random()*maxRotation*2 - maxRotation);
   } else {
-    // Slowly decay rotation back to 0
     rotationX *= 0.9;
     rotationY *= 0.9;
     rotationZ *= 0.9;
