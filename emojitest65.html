@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.09</title>
+<title>3D Shake Emoji v0.10</title>
 <style>
   body {
     margin: 0;
@@ -58,7 +58,7 @@
 </head>
 <body>
 <div id="emoji">😎</div>
-<div id="version">v0.09</div>
+<div id="version">v0.10</div>
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
@@ -77,13 +77,13 @@ let velZ = 0;
 const damping = 0.95;
 const bounce = 0.8;
 const shakeSensitivity = 4.0;
-const centerPull = 0.01;
+const centerPull = 0.0025; // 4x smaller than previous 0.01
 const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
 const maxRotation = 15;
 const wanderRange = 50;
-const wanderSpeed = 0.05;
+const wanderSpeed = 0.0125; // 4x smoother than previous 0.05
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -144,7 +144,7 @@ function animate(){
   const centerY = window.innerHeight / 2;
   const centerZ = 0;
 
-  updateDrift(); // smooth meandering
+  updateDrift(); // ultra-smooth meandering
 
   velX += ((centerX + driftX) - posX) * centerPull;
   velY += ((centerY + driftY) - posY) * centerPull;
