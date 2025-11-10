@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.25</title>
+<title>3D Shake Emoji v0.26</title>
 <style>
   body {
     margin: 0;
@@ -72,9 +72,6 @@ const emojiHoldDuration = 3000; // 3 seconds
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
-const centerX = window.innerWidth / 2;
-const centerY = window.innerHeight / 2;
-const centerZ = 0;
 
 // Shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -120,7 +117,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.25', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.26', canvas.width/2, canvas.height - 20);
 }
 
 // Drift update
@@ -163,10 +160,14 @@ function handleMotion(event){
 function animate(timestamp){
   updateDrift();
 
-  // Center pull + drift
-  velX += ((centerX + driftX) - posX) * centerPull;
-  velY += ((centerY + driftY) - posY) * centerPull;
-  velZ += (centerZ - posZ) * centerPull;
+  // Calculate true window center each frame
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
+  // Pull toward absolute center
+  velX += (centerX - posX) * centerPull;
+  velY += (centerY - posY) * centerPull;
+  velZ += (0 - posZ) * centerPull;
 
   velX *= damping;
   velY *= damping;
@@ -179,7 +180,7 @@ function animate(timestamp){
   // Sphere boundary
   let dx = posX - centerX;
   let dy = posY - centerY;
-  let dz = posZ - centerZ;
+  let dz = posZ - 0;
   let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
   if(dist > sphereRadius){
@@ -197,7 +198,7 @@ function animate(timestamp){
       let nx = dx/dist, ny = dy/dist, nz = dz/dist;
       posX = centerX + nx * sphereRadius;
       posY = centerY + ny * sphereRadius;
-      posZ = centerZ + nz * sphereRadius;
+      posZ = 0 + nz * sphereRadius;
       let dot = velX*nx + velY*ny + velZ*nz;
       velX -= 2*dot*nx*bounce;
       velY -= 2*dot*ny*bounce;
@@ -218,9 +219,13 @@ function animate(timestamp){
   const wobbleY = velX * 0.8; 
   const finalScale = (1 + latestShake) * latestDepth * breatheScale;
 
+  // Apply drift as a visual offset
+  const visualX = posX + driftX;
+  const visualY = posY + driftY;
+
   // Draw emoji
   emoji.style.transform = `
-    translate(${posX}px, ${posY}px)
+    translate(${visualX}px, ${visualY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
     rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX + wobbleX}deg)
