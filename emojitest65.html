@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.13</title>
+<title>3D Shake Emoji v0.14</title>
 <style>
   body {
     margin: 0;
@@ -62,7 +62,7 @@ let velZ = 0;
 const damping = 0.95;
 const bounce = 0.8;
 const shakeSensitivity = 4.0;
-const centerPull = 0.0025;
+const centerPull = 0.0025; 
 const depthSensitivity = 0.05;
 const maxZ = 100;
 const minZ = -100;
@@ -87,6 +87,11 @@ let rotationX = 0;
 let rotationY = 0;
 let rotationZ = 0;
 
+// Continuous tilt angles
+let tiltX = 0;
+let tiltY = 0;
+let tiltZ = 0;
+
 // Smooth meandering offsets
 let driftX = 0;
 let driftY = 0;
@@ -101,7 +106,7 @@ canvas.style.position = 'fixed';
 canvas.style.top = '0';
 canvas.style.left = '0';
 canvas.style.pointerEvents = 'none';
-canvas.style.zIndex = 2147483647; // guaranteed top layer
+canvas.style.zIndex = 2147483647; 
 document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
@@ -110,7 +115,7 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.13', canvas.width/2, canvas.height - 20);
+  ctx.fillText('v0.14', canvas.width/2, canvas.height - 20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
@@ -200,14 +205,19 @@ function animate(){
     rotationZ *= 0.9;
   }
 
+  // --- Subtle continuous tilt ---
+  tiltX += 0.05; 
+  tiltY += 0.03;
+  tiltZ += 0.04;
+
   const finalScale = (1 + latestShake) * latestDepth;
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
-    rotateX(${rotationX}deg)
-    rotateY(${rotationY}deg)
-    rotateZ(${rotationZ}deg)
+    rotateX(${rotationX + Math.sin(tiltX)}deg)
+    rotateY(${rotationY + Math.sin(tiltY)}deg)
+    rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
   `;
 
   requestAnimationFrame(animate);
