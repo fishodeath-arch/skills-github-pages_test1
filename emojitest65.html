@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shake Emoji with Center Pull</title>
+<title>Shake Emoji with Depth</title>
 <style>
   body {
     margin: 0;
@@ -58,10 +58,11 @@ let velX = 0;
 let velY = 0;
 
 // Physics settings
-const damping = 0.9;       // slows down velocity
-const bounce = 0.8;        // bounce off edges
+const damping = 0.9;        // slows down velocity
+const bounce = 0.8;         // bounce off edges
 const shakeSensitivity = 2.5; // how strong shake moves the emoji
-const centerPull = 0.05;   // pull strength towards center
+const centerPull = 0.05;    // pull strength towards center
+const depthSensitivity = 0.05; // scaling effect from Z-axis
 
 // Last acceleration for shake detection
 let lastX = 0, lastY = 0, lastZ = 0;
@@ -79,20 +80,17 @@ function handleMotion(event) {
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Add velocity from shake only if above threshold
+  // Velocity update only from shake
   if(shake > 1) {
     velX += deltaX * shakeSensitivity;
-    velY -= deltaY * shakeSensitivity; // invert Y
+    velY -= deltaY * shakeSensitivity;
   }
 
-  // Apply center pull (spring effect)
+  // Center pull (spring effect)
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
-  const toCenterX = centerX - posX;
-  const toCenterY = centerY - posY;
-
-  velX += toCenterX * centerPull;
-  velY += toCenterY * centerPull;
+  velX += (centerX - posX) * centerPull;
+  velY += (centerY - posY) * centerPull;
 
   // Apply damping
   velX *= damping;
@@ -102,7 +100,7 @@ function handleMotion(event) {
   posX += velX;
   posY += velY;
 
-  // Emoji size
+  // Emoji size (scale)
   const rect = emoji.getBoundingClientRect();
   const halfWidth = rect.width / 2;
   const halfHeight = rect.height / 2;
@@ -113,9 +111,12 @@ function handleMotion(event) {
   if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; }
   if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; }
 
-  // Optional: scale effect on shake
-  const scale = 1 + Math.min(shake*0.02, 0.3);
-  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+  // Scale effect: shake + Z-axis depth
+  const baseScale = 1 + Math.min(shake*0.02, 0.3); // shake scaling
+  const depthScale = 1 - (acc.z || 0) * depthSensitivity; // Z-axis scaling
+  const finalScale = baseScale * depthScale;
+
+  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${finalScale})`;
 }
 
 // iOS 13+ permission
