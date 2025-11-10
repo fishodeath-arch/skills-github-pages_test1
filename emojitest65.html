@@ -8,20 +8,20 @@
   body {
     margin: 0;
     height: 100vh;
+    width: 100vw;
     background: #222;
     overflow: hidden;
     touch-action: none;
     font-family: sans-serif;
-    color: white;
     position: relative;
   }
 
   #emoji {
     font-size: 12vw;
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: 0;
+    left: 0;
+    transform: translate(50%, 50%);
     transition: transform 0.03s linear;
   }
 
@@ -49,9 +49,11 @@
 const emoji = document.getElementById('emoji');
 const startBtn = document.getElementById('startBtn');
 
-// Position and velocity
+// Center position (actual pixel coordinates)
 let posX = window.innerWidth / 2;
 let posY = window.innerHeight / 2;
+
+// Velocity
 let velX = 0;
 let velY = 0;
 
@@ -60,13 +62,12 @@ const sensitivity = 0.5; // smaller = smoother
 const damping = 0.9;     // slows down velocity
 const bounce = 0.8;      // bounce off edges
 
-// Last accelerometer values
 let lastX = 0, lastY = 0, lastZ = 0;
 
 function handleMotion(event) {
   const acc = event.accelerationIncludingGravity || {x:0, y:0, z:0};
 
-  // Calculate change for shake effect
+  // Calculate shake
   const deltaX = acc.x - lastX;
   const deltaY = acc.y - lastY;
   const deltaZ = acc.z - lastZ;
@@ -76,11 +77,10 @@ function handleMotion(event) {
   lastY = acc.y;
   lastZ = acc.z;
 
-  // Update velocity based on tilt
+  // Update velocity
   velX += acc.x * sensitivity;
-  velY -= acc.y * sensitivity; // invert Y for natural movement
+  velY -= acc.y * sensitivity; // invert Y for natural motion
 
-  // Apply damping
   velX *= damping;
   velY *= damping;
 
@@ -88,32 +88,32 @@ function handleMotion(event) {
   posX += velX;
   posY += velY;
 
-  // Get emoji size
+  // Emoji size
   const rect = emoji.getBoundingClientRect();
   const halfWidth = rect.width / 2;
   const halfHeight = rect.height / 2;
 
   // Bounce off edges
-  if(posX < halfWidth) { posX = halfWidth; velX *= -bounce; }
-  if(posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; }
-  if(posY < halfHeight) { posY = halfHeight; velY *= -bounce; }
-  if(posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; }
+  if (posX < halfWidth) { posX = halfWidth; velX *= -bounce; }
+  if (posX > window.innerWidth - halfWidth) { posX = window.innerWidth - halfWidth; velX *= -bounce; }
+  if (posY < halfHeight) { posY = halfHeight; velY *= -bounce; }
+  if (posY > window.innerHeight - halfHeight) { posY = window.innerHeight - halfHeight; velY *= -bounce; }
 
-  // Scale & rotate based on tilt/shake
+  // Scale & rotate
   const scaleX = 1 + acc.x/10 - shake*0.05;
   const scaleY = 1 - acc.x/10 + shake*0.05;
   const rotate = acc.x * 15;
 
-  // Apply transform
-  emoji.style.transform = `translate(${posX}px, ${posY}px) translate(-50%, -50%) scale(${scaleX}, ${scaleY}) rotate(${rotate}deg)`;
+  // Apply transform using posX/posY as center
+  emoji.style.transform = `translate(${posX}px, ${posY}px) scale(${scaleX}, ${scaleY}) rotate(${rotate}deg)`;
 }
 
 // iOS 13+ permission
 function enableMotion() {
-  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
     DeviceMotionEvent.requestPermission()
       .then(response => {
-        if(response === 'granted') {
+        if (response === 'granted') {
           window.addEventListener('devicemotion', handleMotion);
           startBtn.style.display = 'none';
         } else {
