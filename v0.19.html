@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Shake Emoji v0.19</title>
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+    background: #222;
+    overflow: hidden;
+    touch-action: none;
+    font-family: sans-serif;
+    position: relative;
+    perspective: 1000px;
+  }
+
+  #emoji {
+    font-size: 12vw;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(50%, 50%);
+    transform-style: preserve-3d;
+    text-shadow: 0 0 5px #fff;
+  }
+
+  #startBtn {
+    position: absolute;
+    z-index: 100;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 25px;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 10px;
+    border: none;
+    background: #ff9800;
+    color: white;
+  }
+</style>
+</head>
+<body>
+<div id="emoji">😎</div>
+<button id="startBtn">Tap to Enable Motion</button>
+
+<script>
+const emoji = document.getElementById('emoji');
+const startBtn = document.getElementById('startBtn');
+
+// Position and velocity
+let posX = window.innerWidth / 2;
+let posY = window.innerHeight / 2;
+let posZ = 0;
+let velX = 0;
+let velY = 0;
+let velZ = 0;
+
+// Settings
+const damping = 0.95;
+const bounce = 0.8;
+const shakeSensitivity = 4.0;
+const centerPull = 0.0025; 
+const depthSensitivity = 0.05;
+const maxZ = 100;
+const lowMovementCutoff = 0.15; 
+const maxRotation = 15;
+const wanderRange = 50;
+const wanderSpeed = 0.0125;
+const stickDuration = 1200; // increased stickiness duration in ms
+
+// Sphere boundary
+let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+const centerX = window.innerWidth / 2;
+const centerY = window.innerHeight / 2;
+const centerZ = 0;
+
+// Shake detection
+let lastX = 0, lastY = 0, lastZ = 0;
+
+// Emoji reactions
+const defaultEmoji = '😎';
+const reactions = [
+  '😢','😡','😱','😆','🤯','😭',
+  '😳','😬','🤪','😵','😤','😈','👻','💥','💫'
+];
+
+// Animation variables
+let latestShake = 0;
+let latestDepth = 1;
+let rotationX = 0;
+let rotationY = 0;
+let rotationZ = 0;
+
+// Continuous tilt angles
+let tiltX = 0;
+let tiltY = 0;
+let tiltZ = 0;
+
+// Breathing / floating variables
+let breathePhase = 0;
+
+// Smooth meandering offsets
+let driftX = 0;
+let driftY = 0;
+let targetDriftX = (Math.random()*2 - 1) * wanderRange;
+let targetDriftY = (Math.random()*2 - 1) * wanderRange;
+
+// Edge stick timer
+let edgeStickTimer = 0;
+
+// Canvas overlay for watermark
+const canvas = document.createElement('canvas');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+canvas.style.position = 'fixed';
+canvas.style.top = '0';
+canvas.style.left = '0';
+canvas.style.pointerEvents = 'none';
+canvas.style.zIndex = 2147483647; 
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
+
+function drawWatermark(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.fillText('v0.19', canvas.width/2, canvas.height - 20);
+  requestAnimationFrame(drawWatermark);
+}
+drawWatermark();
+
+// Smooth drift update
+function updateDrift(){
+  driftX += (targetDriftX - driftX) * wanderSpeed;
+  driftY += (targetDriftY - driftY) * wanderSpeed;
+
+  if(Math.abs(targetDriftX - driftX) < 1) targetDriftX = (Math.random()*2 - 1) * wanderRange;
+  if(Math.abs(targetDriftY - driftY) < 1) targetDriftY = (Math.random()*2 - 1) * wanderRange;
+}
+
+// Nonlinear accelerometer adjustment
+function adjustAccel(delta){
+  return Math.sign(delta) * Math.pow(Math.abs(delta), 0.7);
+}
+
+function handleMotion(event){
+  const acc = event.acceleration || event.accelerationIncludingGravity || {x:0, y:0, z:0};
+
+  const deltaX = adjustAccel(acc.x - lastX);
+  const deltaY = adjustAccel(acc.y - lastY);
+  const deltaZ = adjustAccel(acc.z - lastZ);
+  const shake = Math.sqrt(deltaX**2 + deltaY**2 + deltaZ**2);
+
+  lastX = acc.x;
+  lastY = acc.y;
+  lastZ = acc.z;
+
+  if(shake > lowMovementCutoff){
+    velX += deltaX * shakeSensitivity;
+    velY -= deltaY * shakeSensitivity;
+    velZ += deltaZ * shakeSensitivity * 0.5;
+    latestShake = Math.min(shake*0.02, 0.3);
+  }
+
+  latestDepth = 1 - (acc.z || 0) * depthSensitivity;
+}
+
+function animate(timestamp){
+  // Center pull + drift
+  velX += ((centerX + driftX) - posX) * centerPull;
+  velY += ((centerY + driftY) - posY) * centerPull;
+  velZ += (centerZ - posZ) * centerPull;
+
+  velX *= damping;
+  velY *= damping;
+  velZ *= damping;
+
+  posX += velX;
+  posY += velY;
+  posZ += velZ;
+
+  // Sphere boundary with sticky edges
+  let dx = posX - centerX;
+  let dy = posY - centerY;
+  let dz = posZ - centerZ;
+  let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  if(dist > sphereRadius){
+    if(!edgeStickTimer){
+      edgeStickTimer = timestamp;
+      const reaction = reactions[Math.floor(Math.random()*reactions.length)];
+      emoji.textContent = reaction;
+      setTimeout(()=>emoji.textContent = defaultEmoji, 1500);
+    }
+    if(timestamp - edgeStickTimer < stickDuration){
+      velX = 0; velY = 0; velZ = 0; // stick longer
+    } else {
+      let nx = dx/dist;
+      let ny = dy/dist;
+      let nz = dz/dist;
+
+      posX = centerX + nx * sphereRadius;
+      posY = centerY + ny * sphereRadius;
+      posZ = centerZ + nz * sphereRadius;
+
+      let dot = velX*nx + velY*ny + velZ*nz;
+      velX -= 2*dot*nx*bounce;
+      velY -= 2*dot*ny*bounce;
+      velZ -= 2*dot*nz*bounce;
+
+      edgeStickTimer = 0; // reset
+    }
+  }
+
+  // Continuous tilt
+  tiltX += 0.05; 
+  tiltY += 0.03;
+  tiltZ += 0.04;
+
+  // Breathing
+  breathePhase += 0.02;
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02; 
+  const breatheTiltX = Math.sin(breathePhase*0.5)*2;   
+  const breatheTiltY = Math.sin(breathePhase*0.3)*2;   
+
+  // Motion-based wobble
+  const wobbleX = velY * 0.8; 
+  const wobbleY = velX * 0.8; 
+
+  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
+  emoji.style.transform = `
+    translate(${posX}px, ${posY}px)
+    translateZ(${posZ}px)
+    scale(${finalScale})
+    rotateX(${rotationX + Math.sin(tiltX) + breatheTiltX + wobbleX}deg)
+    rotateY(${rotationY + Math.sin(tiltY) + breatheTiltY + wobbleY}deg)
+    rotateZ(${rotationZ + Math.sin(tiltZ)}deg)
+  `;
+
+  requestAnimationFrame(animate);
+}
+
+// iOS motion permission
+function enableMotion() {
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(response=>{
+      if(response==='granted'){
+        window.addEventListener('devicemotion', handleMotion);
+        startBtn.style.display='none';
+        requestAnimationFrame(animate);
+      }else{
+        alert('Motion permission denied');
+      }
+    }).catch(console.error);
+  }else{
+    window.addEventListener('devicemotion', handleMotion);
+    startBtn.style.display='none';
+    requestAnimationFrame(animate);
+  }
+}
+
+startBtn.addEventListener('click', enableMotion);
+
+window.addEventListener('resize', () => {
+  posX = window.innerWidth/2;
+  posY = window.innerHeight/2;
+  sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
