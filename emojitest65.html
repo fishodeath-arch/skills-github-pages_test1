@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.19</title>
+<title>3D Shake Emoji v0.21</title>
 <style>
   body {
     margin: 0;
@@ -13,8 +13,8 @@
     overflow: hidden;
     touch-action: none;
     font-family: sans-serif;
-    position: relative;
     perspective: 1000px;
+    position: relative;
   }
 
   #emoji {
@@ -70,7 +70,7 @@ const lowMovementCutoff = 0.15;
 const maxRotation = 15;
 const wanderRange = 50;
 const wanderSpeed = 0.0125;
-const stickDuration = 1200; // increased stickiness duration in ms
+const stickDuration = 1200; // sticky edge duration in ms
 
 // Sphere boundary
 let sphereRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
@@ -84,8 +84,10 @@ let lastX = 0, lastY = 0, lastZ = 0;
 // Emoji reactions
 const defaultEmoji = '😎';
 const reactions = [
-  '😢','😡','😱','😆','🤯','😭',
-  '😳','😬','🤪','😵','😤','😈','👻','💥','💫'
+  '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
+  '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳',
+  '😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤',
+  '😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫'
 ];
 
 // Animation variables
@@ -129,10 +131,8 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.19', canvas.width/2, canvas.height - 20);
-  requestAnimationFrame(drawWatermark);
+  ctx.fillText('v0.21', canvas.width/2, canvas.height - 20);
 }
-drawWatermark();
 
 // Smooth drift update
 function updateDrift(){
@@ -167,10 +167,15 @@ function handleMotion(event){
     latestShake = Math.min(shake*0.02, 0.3);
   }
 
-  latestDepth = 1 - (acc.z || 0) * depthSensitivity;
+  // Clamp depth scaling
+  latestDepth = Math.min(Math.max(1 - (acc.z || 0) * depthSensitivity, 0.5), 1.5);
 }
 
+// Combined animation loop
 function animate(timestamp){
+  updateDrift();
+  drawWatermark();
+
   // Center pull + drift
   velX += ((centerX + driftX) - posX) * centerPull;
   velY += ((centerY + driftY) - posY) * centerPull;
@@ -198,7 +203,7 @@ function animate(timestamp){
       setTimeout(()=>emoji.textContent = defaultEmoji, 1500);
     }
     if(timestamp - edgeStickTimer < stickDuration){
-      velX = 0; velY = 0; velZ = 0; // stick longer
+      velX = 0; velY = 0; velZ = 0;
     } else {
       let nx = dx/dist;
       let ny = dy/dist;
@@ -213,7 +218,7 @@ function animate(timestamp){
       velY -= 2*dot*ny*bounce;
       velZ -= 2*dot*nz*bounce;
 
-      edgeStickTimer = 0; // reset
+      edgeStickTimer = 0; 
     }
   }
 
