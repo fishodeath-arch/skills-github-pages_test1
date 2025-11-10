@@ -54,8 +54,24 @@
 </style>
 </head>
 <body>
-<div id="emoji">😎</div>
 <div id="version">v0.09</div>
+
+<style>
+#version {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  color: rgba(255, 255, 255, 0.7); /* brighter for visibility */
+  font-size: 20px; /* larger */
+  z-index: 9999;   /* ensure on top */
+  user-select: none;
+  pointer-events: none;
+  font-weight: bold;
+}
+</style>
+
+<div id="emoji">😎</div>
+
 <button id="startBtn">Tap to Enable Motion</button>
 
 <script>
