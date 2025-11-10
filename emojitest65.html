@@ -111,3 +111,29 @@ function handleMotion(event) {
 // iOS 13+ permission
 function enableMotion() {
   if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(response => {
+        if(response === 'granted') {
+          window.addEventListener('devicemotion', handleMotion);
+          startBtn.style.display = 'none';
+        } else {
+          alert('Motion permission denied');
+        }
+      })
+      .catch(console.error);
+  } else {
+    window.addEventListener('devicemotion', handleMotion);
+    startBtn.style.display = 'none';
+  }
+}
+
+startBtn.addEventListener('click', enableMotion);
+
+// Reset center if window resizes
+window.addEventListener('resize', () => {
+  posX = window.innerWidth / 2;
+  posY = window.innerHeight / 2;
+});
+</script>
+</body>
+</html>
