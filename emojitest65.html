@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Shake Emoji v0.23</title>
+<title>3D Shake Emoji v0.24</title>
 <style>
   body {
     margin: 0;
@@ -66,9 +66,6 @@ const wanderRange = 50;
 const wanderSpeed = 0.0125;
 const stickDuration = 1500;
 
-// Screen center & boundaries
-let centerX, centerY, maxRadius;
-
 // Drift
 let driftX = 0, driftY = 0;
 let targetDriftX = (Math.random()*2-1)*wanderRange;
@@ -106,25 +103,10 @@ function drawWatermark(){
   ctx.font = '28px sans-serif';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText('v0.23', canvas.width/2, canvas.height-20);
+  ctx.fillText('v0.24', canvas.width/2, canvas.height-20);
   requestAnimationFrame(drawWatermark);
 }
 drawWatermark();
-
-// Initialize center
-function updateScreenMetrics(){
-  centerX = window.innerWidth/2;
-  centerY = window.innerHeight/2;
-  maxRadius = Math.min(centerX, centerY) - 60;
-
-  if(posX===undefined || posY===undefined){
-    posX = centerX;
-    posY = centerY;
-  }
-}
-
-updateScreenMetrics();
-window.addEventListener('resize', updateScreenMetrics);
 
 function updateDrift(){
   driftX += (targetDriftX - driftX) * wanderSpeed;
@@ -154,58 +136,68 @@ function handleMotion(event){
   latestDepth = 1 - (acc.z||0)*depthSensitivity;
 }
 
+let initialized = false;
+
 function animate(timestamp){
-  velX += ((centerX+driftX)-posX)*centerPull;
-  velY += ((centerY+driftY)-posY)*centerPull;
-  velZ += (0-posZ)*centerPull;
+  // Initialize emoji position on first frame
+  if(!initialized){
+    posX = window.innerWidth/2;
+    posY = window.innerHeight/2;
+    posZ = 0;
+    initialized = true;
+  }
+
+  // Center pull + drift
+  velX += ((window.innerWidth/2 + driftX) - posX) * centerPull;
+  velY += ((window.innerHeight/2 + driftY) - posY) * centerPull;
+  velZ += (0 - posZ) * centerPull;
 
   velX *= damping; velY *= damping; velZ *= damping;
   posX += velX; posY += velY; posZ += velZ;
 
-  // Circular boundary (stickiness)
-  let dx = posX-centerX;
-  let dy = posY-centerY;
-  let dz = posZ-0;
-  let dist = Math.sqrt(dx*dx+dy*dy+dz*dz);
+  // Circular boundary (edge stickiness)
+  let dx = posX - window.innerWidth/2;
+  let dy = posY - window.innerHeight/2;
+  let dz = posZ - 0;
+  let maxRadius = Math.min(window.innerWidth, window.innerHeight)/2 - 60;
+  let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-  if(dist>maxRadius){
+  if(dist > maxRadius){
     if(!edgeStickTimer){
       edgeStickTimer = timestamp;
       const reaction = faceEmojis[Math.floor(Math.random()*faceEmojis.length)];
       emoji.textContent = reaction;
       setTimeout(()=>emoji.textContent=defaultEmoji,1500);
     }
-    if(timestamp-edgeStickTimer<stickDuration){
-      velX=0; velY=0; velZ=0;
+    if(timestamp-edgeStickTimer < stickDuration){
+      velX = velY = velZ = 0;
     } else {
-      let nx=dx/dist, ny=dy/dist, nz=dz/dist;
-      posX=centerX+nx*maxRadius;
-      posY=centerY+ny*maxRadius;
-      posZ=0+nz*maxRadius;
-      let dot=velX*nx+velY*ny+velZ*nz;
-      velX-=2*dot*nx*bounce;
-      velY-=2*dot*ny*bounce;
-      velZ-=2*dot*nz*bounce;
-      edgeStickTimer=0;
+      let nx = dx/dist, ny = dy/dist, nz = dz/dist;
+      posX = window.innerWidth/2 + nx*maxRadius;
+      posY = window.innerHeight/2 + ny*maxRadius;
+      posZ = nz*maxRadius;
+      let dot = velX*nx + velY*ny + velZ*nz;
+      velX -= 2*dot*nx*bounce;
+      velY -= 2*dot*ny*bounce;
+      velZ -= 2*dot*nz*bounce;
+      edgeStickTimer = 0;
     }
   }
 
-  // Tilt + breathing
-  tiltX+=0.05; tiltY+=0.03; tiltZ+=0.04;
-  breathePhase+=0.02;
-  const breatheScale = 1+Math.sin(breathePhase)*0.02;
-  const breatheTiltX = Math.sin(breathePhase*0.5)*2;
-  const breatheTiltY = Math.sin(breathePhase*0.3)*2;
+  // breathing & wobble
+  tiltX += 0.05; tiltY += 0.03; tiltZ += 0.04;
+  breathePhase += 0.02;
+  const breatheScale = 1 + Math.sin(breathePhase)*0.02;
   const wobbleX = velY*0.8;
   const wobbleY = velX*0.8;
 
-  const finalScale = (1+latestShake)*latestDepth*breatheScale;
+  const finalScale = (1 + latestShake) * latestDepth * breatheScale;
   emoji.style.transform = `
     translate(${posX}px, ${posY}px)
     translateZ(${posZ}px)
     scale(${finalScale})
-    rotateX(${Math.sin(tiltX)+breatheTiltX+wobbleX}deg)
-    rotateY(${Math.sin(tiltY)+breatheTiltY+wobbleY}deg)
+    rotateX(${Math.sin(tiltX)+wobbleX}deg)
+    rotateY(${Math.sin(tiltY)+wobbleY}deg)
     rotateZ(${Math.sin(tiltZ)}deg)
   `;
 
@@ -231,6 +223,16 @@ function enableMotion(){
 }
 
 startBtn.addEventListener('click', enableMotion);
+
+window.addEventListener('resize', ()=>{
+  // Ensure pos stays relative to center on resize
+  if(initialized){
+    posX = window.innerWidth/2;
+    posY = window.innerHeight/2;
+  }
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
 </script>
 </body>
 </html>
