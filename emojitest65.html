@@ -59,14 +59,16 @@
 <style>
 #version {
   position: fixed;
-  bottom: 10px;
-  right: 10px;
-  color: rgba(255, 255, 255, 0.7); /* brighter for visibility */
-  font-size: 20px; /* larger */
-  z-index: 9999;   /* ensure on top */
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.8); /* brighter for visibility */
+  font-size: 24px;                  /* larger */
+  z-index: 9999;                     /* on top of everything */
   user-select: none;
   pointer-events: none;
   font-weight: bold;
+  font-family: sans-serif;
 }
 </style>
 
